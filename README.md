@@ -46,8 +46,14 @@ Menus are defined as file triplets in `assets/menus/`:
 ```lua
 local menu = {}
 
+function menu.on_load(node)
+    -- called BEFORE menu art is displayed
+    -- use this to clear screen or set initial state
+    node:cls()
+end
+
 function menu.on_enter(node)
-    -- called when menu is loaded
+    -- called AFTER menu art is displayed
 end
 
 function menu.on_key(node, key)
