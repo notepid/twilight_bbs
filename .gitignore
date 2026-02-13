@@ -1,0 +1,24 @@
+# Binary
+bbs
+/bbs
+
+# Data files (runtime-generated)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# SSH keys
+ssh_host_key*
+
+# Temp files
+*.tmp
+doors_tmp/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

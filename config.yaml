@@ -1,0 +1,19 @@
+bbs:
+  name: "Twilight BBS"
+  sysop: "Sysop"
+  max_nodes: 32
+
+server:
+  telnet_port: 2323
+  ssh_port: 2222
+
+paths:
+  menus: "./assets/menus"
+  text: "./assets/text"
+  doors: "./assets/doors"
+  data: "./data"
+  database: "./data/twilight.db"
+
+doors:
+  dosemu_path: "/usr/bin/dosemu"
+  drive_c: "./doors/drive_c"
