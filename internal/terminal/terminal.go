@@ -15,7 +15,8 @@ type Terminal struct {
 	Height      int
 	ANSIEnabled bool
 
-	// echoControl is called to enable/disable server-side echo
+	// echoControl is called to enable/disable safe echo behavior.
+	// For telnet, this typically controls whether the client performs local echo.
 	echoControl func(on bool) error
 }
 
@@ -29,7 +30,7 @@ func New(rwc io.ReadWriteCloser, width, height int, ansiEnabled bool) *Terminal 
 	}
 }
 
-// SetEchoControl registers a callback for enabling/disabling echo.
+// SetEchoControl registers a callback for enabling/disabling echo behavior.
 func (t *Terminal) SetEchoControl(fn func(on bool) error) {
 	t.echoControl = fn
 }

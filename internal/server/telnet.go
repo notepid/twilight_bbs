@@ -63,6 +63,14 @@ func (tc *TelnetConn) Negotiate() error {
 	if err := tc.sendCommand(WILL, OptSGA); err != nil {
 		return err
 	}
+	// DO SGA - request the client suppress go-ahead as well
+	if err := tc.sendCommand(DO, OptSGA); err != nil {
+		return err
+	}
+	// DONT LINEMODE - request character-at-a-time input (avoids local line editing/echo)
+	if err := tc.sendCommand(DONT, OptLinemod); err != nil {
+		return err
+	}
 	// DO NAWS - request window size from client
 	if err := tc.sendCommand(DO, OptNAWS); err != nil {
 		return err
@@ -212,10 +220,14 @@ func (tc *TelnetConn) RemoteAddr() net.Addr {
 
 // SetEcho enables or disables server-side echo.
 func (tc *TelnetConn) SetEcho(on bool) error {
-	if on {
-		return tc.sendCommand(WILL, OptEcho)
-	}
-	return tc.sendCommand(WONT, OptEcho)
+	// Telnet ECHO negotiation controls whether the client should perform local echo.
+	// If we send WONT ECHO, many clients switch to local echo, which would leak
+	// password characters while the server is printing '*'.
+	//
+	// This callback is used by terminal.GetPassword to hide plaintext input, so we
+	// always keep the server in "echo mode" from the client's perspective.
+	_ = on
+	return tc.sendCommand(WILL, OptEcho)
 }
 
 // handleWillWont processes WILL/WONT responses from the client.
@@ -230,6 +242,11 @@ func (tc *TelnetConn) handleWillWont(cmd, opt byte) {
 			tc.mu.Lock()
 			tc.conn.Write([]byte{IAC, SB, OptTType, 1, IAC, SE})
 			tc.mu.Unlock()
+		}
+	case OptLinemod:
+		// Client offered linemode; refuse so we get character-at-a-time input.
+		if cmd == WILL {
+			_ = tc.sendCommand(DONT, OptLinemod)
 		}
 	}
 }
