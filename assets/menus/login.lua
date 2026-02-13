@@ -44,6 +44,7 @@ function menu.on_enter(node)
     end
     node:sendln("")
     node:pause()
+    node:cls()
     node:goto_menu("main_menu")
 end
 
@@ -100,6 +101,7 @@ function do_register(node)
     node:sendln("  Account created! Welcome, " .. user.name .. "!")
     node:sendln("")
     node:pause()
+    node:cls()
     node:goto_menu("main_menu")
 end
 

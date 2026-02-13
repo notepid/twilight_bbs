@@ -228,6 +228,55 @@ func (e *Engine) runMenu(name string) error {
 		return ErrMenuNotFound
 	}
 
+	// Load and run the Lua script
+	if m.HasScript() {
+		// Create a fresh VM for each menu to avoid state leakage
+		oldVM := e.vm
+		e.vm = scripting.NewVM()
+		e.nodeUD = e.nodeAPI.Register(e.vm.L)
+		e.nodeAPI.CurrentMenuName = name
+
+		// Re-register APIs in the new VM
+		if e.userAPI != nil {
+			e.userAPI.Register(e.vm.L)
+		}
+		if e.msgAPI != nil {
+			e.msgAPI.Register(e.vm.L)
+		}
+		if e.fileAPI != nil {
+			e.fileAPI.Register(e.vm.L)
+		}
+		if e.chatAPI != nil {
+			e.chatAPI.Register(e.vm.L)
+		}
+		if e.doorAPI != nil {
+			e.doorAPI.Register(e.vm.L)
+		}
+
+		oldVM.Close()
+
+		if err := e.vm.LoadScript(m.ScriptPath); err != nil {
+			log.Printf("Script error in %s: %v", m.ScriptPath, err)
+			e.term.SendLn(fmt.Sprintf("\r\nScript error: %v", err))
+			e.term.Pause()
+			// Continue to show menu even if script fails?
+			// Maybe return nil to abort this menu but not the session?
+			// For now let's continue to display part
+		}
+	} else {
+		// Even if no script, we might want to close old VM? 
+		// Actually the existing code didn't close old VM if !m.HasScript(), which might be a bug or intentional to keep previous state?
+		// But runMenu creates a NEW VM every time. So if we don't have a script, we are just pausing.
+		// Let's stick to the previous logic but reorganized.
+	}
+
+	// Call on_load if script exists
+	if m.HasScript() {
+		if err := e.vm.CallMenuHandler("on_load", e.nodeUD); err != nil {
+			scripting.LogError(name+".on_load", err)
+		}
+	}
+
 	// Display the menu file
 	displayPath := m.DisplayPath(e.term.ANSIEnabled)
 	if displayPath != "" {
@@ -240,41 +289,8 @@ func (e *Engine) runMenu(name string) error {
 			}
 		}
 	}
-
-	// Load and run the Lua script
+	
 	if !m.HasScript() {
-		e.term.Pause()
-		return nil
-	}
-
-	// Create a fresh VM for each menu to avoid state leakage
-	oldVM := e.vm
-	e.vm = scripting.NewVM()
-	e.nodeUD = e.nodeAPI.Register(e.vm.L)
-	e.nodeAPI.CurrentMenuName = name
-
-	// Re-register APIs in the new VM
-	if e.userAPI != nil {
-		e.userAPI.Register(e.vm.L)
-	}
-	if e.msgAPI != nil {
-		e.msgAPI.Register(e.vm.L)
-	}
-	if e.fileAPI != nil {
-		e.fileAPI.Register(e.vm.L)
-	}
-	if e.chatAPI != nil {
-		e.chatAPI.Register(e.vm.L)
-	}
-	if e.doorAPI != nil {
-		e.doorAPI.Register(e.vm.L)
-	}
-
-	oldVM.Close()
-
-	if err := e.vm.LoadScript(m.ScriptPath); err != nil {
-		log.Printf("Script error in %s: %v", m.ScriptPath, err)
-		e.term.SendLn(fmt.Sprintf("\r\nScript error: %v", err))
 		e.term.Pause()
 		return nil
 	}

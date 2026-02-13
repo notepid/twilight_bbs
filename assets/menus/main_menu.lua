@@ -1,6 +1,10 @@
 -- main_menu.lua - Main BBS menu
 local menu = {}
 
+function menu.on_load(node)
+    node:cls()
+end
+
 function menu.on_key(node, key)
     if key == "M" or key == "m" then
         node:goto_menu("message_menu")
