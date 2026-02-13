@@ -373,6 +373,9 @@ func (e *Engine) handleUserLogin(u *user.User) {
 	e.currentUser = u
 	// Update terminal ANSI setting based on user preference
 	e.term.ANSIEnabled = u.ANSIEnabled
+	if e.services != nil && e.services.ChatBroker != nil {
+		e.services.ChatBroker.UpdateOnlineName(e.services.NodeID, u.Username)
+	}
 }
 
 func (e *Engine) handleShowOnline() error {

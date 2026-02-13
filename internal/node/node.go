@@ -62,12 +62,19 @@ func (n *Node) Run(mgr *Manager) {
 		if r := recover(); r != nil {
 			log.Printf("Node %d panic: %v", n.ID, r)
 		}
+		if n.ChatBroker != nil {
+			n.ChatBroker.Unsubscribe(n.ID)
+			n.ChatBroker.UnregisterOnline(n.ID)
+		}
 		n.Term.Close()
 		mgr.Remove(n.ID)
 		log.Printf("Node %d disconnected (%s)", n.ID, n.Remote)
 	}()
 
 	log.Printf("Node %d connected from %s", n.ID, n.Remote)
+	if n.ChatBroker != nil {
+		n.ChatBroker.RegisterOnline(n.ID, "(logging in)")
+	}
 
 	if n.MenuRegistry != nil && n.ANSILoader != nil {
 		svc := &menu.Services{
