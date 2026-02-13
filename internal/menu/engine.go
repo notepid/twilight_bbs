@@ -419,11 +419,9 @@ func (e *Engine) handleEnterChat() error {
 
 	// Subscribe to chat
 	sub := broker.Subscribe(nodeID, userName)
-	defer broker.Unsubscribe(nodeID)
 
 	// Join room
 	broker.JoinRoom(nodeID, room)
-	defer broker.LeaveRoom(nodeID)
 
 	// Announce arrival
 	broker.SendToRoom(nodeID, userName, room,
@@ -453,17 +451,28 @@ func (e *Engine) handleEnterChat() error {
 		}
 	}()
 
-	defer close(done)
+	cleanup := func() {
+		select {
+		case <-done:
+			// already closed
+		default:
+			close(done)
+		}
+		broker.LeaveRoom(nodeID)
+		broker.Unsubscribe(nodeID)
+	}
 
 	for {
 		line, err := e.term.GetLine(200)
 		if err != nil {
+			cleanup()
 			break
 		}
 
 		if line == "/quit" || line == "/q" {
 			broker.SendToRoom(nodeID, userName, room,
 				fmt.Sprintf("*** %s has left ***", userName))
+			cleanup()
 			break
 		}
 
@@ -480,9 +489,12 @@ func (e *Engine) handleEnterChat() error {
 			e.term.SendLn(fmt.Sprintf("  <%s> %s", userName, line))
 		}
 	}
+	cleanup()
 
 	e.term.SendLn("")
 	e.term.SendLn("  Left chat room.")
-	e.term.Pause()
+	if !e.hasNavigationPending() {
+		e.nextMenu = e.currentMenu
+	}
 	return nil
 }
