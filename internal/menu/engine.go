@@ -451,90 +451,20 @@ func (e *Engine) handleEnterChat() error {
 		return nil
 	}
 
-	room := "main"
-	broker := e.services.ChatBroker
-	nodeID := e.services.NodeID
 	userName := "Unknown"
 	if e.currentUser != nil {
 		userName = e.currentUser.Username
 	}
-
-	// Subscribe to chat
-	sub := broker.Subscribe(nodeID, userName)
-
-	// Join room
-	broker.JoinRoom(nodeID, room)
-
-	// Announce arrival
-	broker.SendToRoom(nodeID, userName, room,
-		fmt.Sprintf("*** %s has joined ***", userName))
-
-	e.term.Cls()
-	e.term.SendLn("  Chat Room: " + room)
-	e.term.SendLn("  Type /quit to leave, /who to see users")
-	e.term.SendLn("  ─────────────────────────────────────")
-	e.term.SendLn("")
-
-	// Simple chat loop - read messages and input
-	// We use a goroutine to display incoming messages
-	done := make(chan struct{})
-	go func() {
-		defer func() { recover() }()
-		for {
-			select {
-			case msg, ok := <-sub.Ch:
-				if !ok {
-					return
-				}
-				e.term.SendLn(fmt.Sprintf("\r  <%s> %s", msg.FromUser, msg.Text))
-			case <-done:
-				return
-			}
-		}
-	}()
-
-	cleanup := func() {
-		select {
-		case <-done:
-			// already closed
-		default:
-			close(done)
-		}
-		broker.LeaveRoom(nodeID)
-		broker.Unsubscribe(nodeID)
+	room := "main"
+	if err := chat.RunRoomSession(chat.RoomSessionConfig{
+		Term:     e.term,
+		Broker:   e.services.ChatBroker,
+		NodeID:   e.services.NodeID,
+		UserName: userName,
+		Room:     room,
+	}); err != nil {
+		return err
 	}
-
-	for {
-		line, err := e.term.GetLine(200)
-		if err != nil {
-			cleanup()
-			break
-		}
-
-		if line == "/quit" || line == "/q" {
-			broker.SendToRoom(nodeID, userName, room,
-				fmt.Sprintf("*** %s has left ***", userName))
-			cleanup()
-			break
-		}
-
-		if line == "/who" {
-			members := broker.RoomMembers(room)
-			e.term.SendLn("  Users in room: " + fmt.Sprintf("%v", members))
-			continue
-		}
-
-		if line != "" {
-			// Send to room
-			broker.SendToRoom(nodeID, userName, room, line)
-			// Echo locally
-			e.term.SendLn(fmt.Sprintf("  <%s> %s", userName, line))
-		}
-	}
-	cleanup()
-
-	e.term.SendLn("")
-	e.term.SendLn("  Left chat room.")
 	if !e.hasNavigationPending() {
 		e.nextMenu = e.currentMenu
 	}

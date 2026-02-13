@@ -2,6 +2,10 @@
 local menu = {}
 local current_area = nil
 
+function menu.on_load(node)
+    node:cls()
+end
+
 function menu.on_key(node, key)
     if key == "L" or key == "l" then
         list_areas(node)
