@@ -43,12 +43,12 @@ var migrations = []migration{
 		sql: `
 			CREATE TABLE IF NOT EXISTS messages (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				area_id INTEGER NOT NULL REFERENCES message_areas(id),
-				from_user_id INTEGER NOT NULL REFERENCES users(id),
-				to_user_id INTEGER REFERENCES users(id),
+				area_id INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE RESTRICT,
+				from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+				to_user_id INTEGER REFERENCES users(id) ON DELETE RESTRICT,
 				subject TEXT NOT NULL,
 				body TEXT NOT NULL,
-				reply_to_id INTEGER REFERENCES messages(id),
+				reply_to_id INTEGER REFERENCES messages(id) ON DELETE RESTRICT,
 				created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 			);
 			CREATE INDEX IF NOT EXISTS idx_messages_area ON messages(area_id, id);
@@ -59,8 +59,8 @@ var migrations = []migration{
 		name: "create message read tracking",
 		sql: `
 			CREATE TABLE IF NOT EXISTS message_read (
-				user_id INTEGER NOT NULL REFERENCES users(id),
-				area_id INTEGER NOT NULL REFERENCES message_areas(id),
+				user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+				area_id INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE RESTRICT,
 				last_read_id INTEGER NOT NULL DEFAULT 0,
 				PRIMARY KEY (user_id, area_id)
 			)
@@ -85,11 +85,11 @@ var migrations = []migration{
 		sql: `
 			CREATE TABLE IF NOT EXISTS file_entries (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				area_id INTEGER NOT NULL REFERENCES file_areas(id),
+				area_id INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE RESTRICT,
 				filename TEXT NOT NULL,
 				description TEXT DEFAULT '',
 				size_bytes INTEGER DEFAULT 0,
-				uploader_id INTEGER REFERENCES users(id),
+				uploader_id INTEGER REFERENCES users(id) ON DELETE RESTRICT,
 				download_count INTEGER DEFAULT 0,
 				uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
 			);

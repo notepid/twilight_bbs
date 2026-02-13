@@ -3,6 +3,7 @@ package filearea
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Repo handles database operations for file areas and entries.
@@ -106,6 +107,7 @@ func (r *Repo) GetFile(id int) (*Entry, error) {
 
 // FindByName searches for files by name pattern across all areas.
 func (r *Repo) FindByName(pattern string, userLevel int) ([]*Entry, error) {
+	pattern = "%" + escapeLike(pattern) + "%"
 	rows, err := r.db.Query(`
 		SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes,
 		       f.uploader_id, COALESCE(u.username, 'Unknown') as uploader_name,
@@ -113,11 +115,11 @@ func (r *Repo) FindByName(pattern string, userLevel int) ([]*Entry, error) {
 		FROM file_entries f
 		LEFT JOIN users u ON u.id = f.uploader_id
 		JOIN file_areas a ON a.id = f.area_id
-		WHERE (f.filename LIKE ? OR f.description LIKE ?)
+		WHERE (f.filename LIKE ? ESCAPE '\\' OR f.description LIKE ? ESCAPE '\\')
 		  AND a.download_level <= ?
 		ORDER BY f.filename
 		LIMIT 50
-	`, "%"+pattern+"%", "%"+pattern+"%", userLevel)
+	`, pattern, pattern, userLevel)
 	if err != nil {
 		return nil, fmt.Errorf("search files: %w", err)
 	}
@@ -155,4 +157,12 @@ func (r *Repo) IncrementDownload(fileID int) error {
 		UPDATE file_entries SET download_count = download_count + 1 WHERE id = ?
 	`, fileID)
 	return err
+}
+
+func escapeLike(s string) string {
+	// Escape LIKE wildcards and the escape character itself.
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return s
 }

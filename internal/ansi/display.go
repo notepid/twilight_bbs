@@ -12,11 +12,11 @@ import (
 
 // DisplayFile represents a loaded ANSI or ASCII display file.
 type DisplayFile struct {
-	Name    string
-	Path    string
-	IsANSI  bool
-	Data    []byte
-	Sauce   *SAUCE
+	Name   string
+	Path   string
+	IsANSI bool
+	Data   []byte
+	Sauce  *SAUCE
 }
 
 // Loader handles finding and loading display files from a directory.
@@ -33,6 +33,11 @@ func NewLoader(dirs ...string) *Loader {
 // If ansiEnabled is false, it will only look for ASC files.
 // The name should not include an extension.
 func (l *Loader) Find(name string, ansiEnabled bool) (*DisplayFile, error) {
+	safeName, err := sanitizeDisplayName(name)
+	if err != nil {
+		return nil, err
+	}
+
 	// Search order: prefer ANS when ANSI is enabled
 	var extensions []string
 	if ansiEnabled {
@@ -43,7 +48,10 @@ func (l *Loader) Find(name string, ansiEnabled bool) (*DisplayFile, error) {
 
 	for _, dir := range l.baseDirs {
 		for _, ext := range extensions {
-			path := filepath.Join(dir, name+ext)
+			path := filepath.Join(dir, safeName+ext)
+			if !isWithinBaseDir(dir, path) {
+				continue
+			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				continue
@@ -55,16 +63,59 @@ func (l *Loader) Find(name string, ansiEnabled bool) (*DisplayFile, error) {
 			sauce, content := ParseSAUCE(data)
 
 			return &DisplayFile{
-				Name:  name,
-				Path:  path,
+				Name:   safeName,
+				Path:   path,
 				IsANSI: isANSI,
-				Data:  content,
-				Sauce: sauce,
+				Data:   content,
+				Sauce:  sauce,
 			}, nil
 		}
 	}
 
-	return nil, fmt.Errorf("display file not found: %s", name)
+	return nil, fmt.Errorf("display file not found: %s", safeName)
+}
+
+func sanitizeDisplayName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("empty display name")
+	}
+	if strings.ContainsRune(name, 0) {
+		return "", fmt.Errorf("invalid display name")
+	}
+
+	clean := filepath.Clean(name)
+	if clean == "." || clean == ".." {
+		return "", fmt.Errorf("invalid display name")
+	}
+	if filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
+		return "", fmt.Errorf("invalid display name")
+	}
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("invalid display name")
+	}
+	// Guard against Windows-style separators even on Unix.
+	if strings.Contains(clean, "\\") {
+		return "", fmt.Errorf("invalid display name")
+	}
+
+	return clean, nil
+}
+
+func isWithinBaseDir(base, path string) bool {
+	baseAbs, err := filepath.Abs(base)
+	if err != nil {
+		return false
+	}
+	pathAbs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(baseAbs, pathAbs)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 // Load reads a specific file by full path.
@@ -80,11 +131,11 @@ func (l *Loader) Load(path string) (*DisplayFile, error) {
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 
 	return &DisplayFile{
-		Name:  name,
-		Path:  path,
+		Name:   name,
+		Path:   path,
 		IsANSI: isANSI,
-		Data:  content,
-		Sauce: sauce,
+		Data:   content,
+		Sauce:  sauce,
 	}, nil
 }
 

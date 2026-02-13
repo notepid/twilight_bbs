@@ -1,6 +1,8 @@
 package scripting
 
 import (
+	"strings"
+
 	"github.com/mikael/twilight_bbs/internal/terminal"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -136,7 +138,11 @@ func (api *NodeAPI) luaCls(L *lua.LState) int {
 }
 
 func (api *NodeAPI) luaDisplay(L *lua.LState) int {
-	name := L.CheckString(2)
+	name := strings.TrimSpace(L.CheckString(2))
+	if name == "" {
+		L.ArgError(2, "empty display name")
+		return 0
+	}
 	if api.OnDisplay != nil {
 		if err := api.OnDisplay(name); err != nil {
 			L.ArgError(2, err.Error())

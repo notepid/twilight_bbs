@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"crypto/x509"
 
@@ -70,10 +71,13 @@ func (sc *SSHConn) SetEcho(on bool) error {
 
 // SSHListener accepts incoming SSH connections.
 type SSHListener struct {
-	addr     string
-	config   *ssh.ServerConfig
-	handler  func(conn *SSHConn, remoteAddr string)
+	addr        string
+	config      *ssh.ServerConfig
+	handler     func(conn *SSHConn, remoteAddr string)
 	hostKeyPath string
+
+	attemptMu sync.Mutex
+	attempts  map[string]*sshAttempt
 }
 
 // NewSSHListener creates a new SSH listener.
@@ -92,6 +96,7 @@ func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, re
 		config:      config,
 		handler:     handler,
 		hostKeyPath: hostKeyPath,
+		attempts:    make(map[string]*sshAttempt),
 	}
 
 	// Load or generate host key
@@ -135,7 +140,7 @@ func (l *SSHListener) loadOrGenerateHostKey() error {
 
 	// Save to file
 	dir := filepath.Dir(l.hostKeyPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create key dir: %w", err)
 	}
 	if err := os.WriteFile(l.hostKeyPath, pemData, 0600); err != nil {
@@ -150,6 +155,57 @@ func (l *SSHListener) loadOrGenerateHostKey() error {
 
 	log.Printf("SSH: generated new host key at %s", l.hostKeyPath)
 	return nil
+}
+
+type sshAttempt struct {
+	last  time.Time
+	count int
+}
+
+func (l *SSHListener) allowConnection(host string) (time.Duration, bool) {
+	// Simple per-host backoff to reduce anonymous connection abuse.
+	// Not perfect, but it meaningfully raises the cost of flooding.
+	const (
+		window     = 10 * time.Second
+		resetAfter = 30 * time.Second
+		maxCount   = 30
+		step       = 250 * time.Millisecond
+		maxDelay   = 5 * time.Second
+	)
+
+	now := time.Now()
+
+	l.attemptMu.Lock()
+	defer l.attemptMu.Unlock()
+
+	a := l.attempts[host]
+	if a == nil {
+		a = &sshAttempt{last: now}
+		l.attempts[host] = a
+	}
+
+	if now.Sub(a.last) > resetAfter {
+		a.count = 0
+	}
+	if now.Sub(a.last) <= window {
+		a.count++
+	} else {
+		a.count = 1
+	}
+	a.last = now
+
+	if a.count > maxCount {
+		return 0, false
+	}
+
+	if a.count <= 3 {
+		return 0, true
+	}
+	d := time.Duration(a.count-3) * step
+	if d > maxDelay {
+		d = maxDelay
+	}
+	return d, true
 }
 
 // ListenAndServe starts accepting SSH connections.
@@ -176,6 +232,19 @@ func (l *SSHListener) ListenAndServe() error {
 // handleConnection processes a single SSH connection.
 func (l *SSHListener) handleConnection(conn net.Conn) {
 	remoteAddr := conn.RemoteAddr().String()
+	host := remoteAddr
+	if h, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		host = h
+	}
+	if delay, ok := l.allowConnection(host); !ok {
+		conn.Close()
+		return
+	} else if delay > 0 {
+		time.Sleep(delay)
+	}
+
+	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
+	defer conn.SetDeadline(time.Time{})
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, l.config)
@@ -185,6 +254,7 @@ func (l *SSHListener) handleConnection(conn net.Conn) {
 		return
 	}
 	defer sshConn.Close()
+	_ = conn.SetDeadline(time.Time{})
 
 	log.Printf("SSH connection from %s (user: %s)", remoteAddr, sshConn.User())
 

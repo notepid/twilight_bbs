@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -54,10 +55,9 @@ func (b *Broker) Unsubscribe(nodeID int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if sub, ok := b.subscribers[nodeID]; ok {
-		close(sub.Ch)
-		delete(b.subscribers, nodeID)
-	}
+	// Don't close the channel here: broadcasters may have already snapshotted
+	// subscribers and will send concurrently.
+	delete(b.subscribers, nodeID)
 }
 
 // SendTo sends a message to a specific node.
@@ -79,17 +79,23 @@ func (b *Broker) SendTo(fromNodeID int, fromUser string, toNodeID int, text stri
 
 	select {
 	case sub.Ch <- msg:
+		return nil
 	default:
-		// Buffer full, drop message
+		return fmt.Errorf("node %d message buffer full", toNodeID)
 	}
-
-	return nil
 }
 
 // Broadcast sends a message to all subscribed nodes except the sender.
 func (b *Broker) Broadcast(fromNodeID int, fromUser string, text string) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
+	subs := make([]*Subscriber, 0, len(b.subscribers))
+	for id, sub := range b.subscribers {
+		if id == fromNodeID {
+			continue
+		}
+		subs = append(subs, sub)
+	}
+	b.mu.RUnlock()
 
 	msg := Message{
 		FromNodeID: fromNodeID,
@@ -97,21 +103,32 @@ func (b *Broker) Broadcast(fromNodeID int, fromUser string, text string) {
 		Text:       text,
 	}
 
-	for id, sub := range b.subscribers {
-		if id == fromNodeID {
-			continue
-		}
+	dropped := 0
+	for _, sub := range subs {
 		select {
 		case sub.Ch <- msg:
 		default:
+			dropped++
 		}
+	}
+	if dropped > 0 {
+		log.Printf("chat: dropped %d broadcast messages (slow subscribers)", dropped)
 	}
 }
 
 // SendToRoom sends a message to all nodes in a specific chat room.
 func (b *Broker) SendToRoom(fromNodeID int, fromUser string, room string, text string) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
+	subs := make([]*Subscriber, 0, len(b.subscribers))
+	for id, sub := range b.subscribers {
+		if id == fromNodeID {
+			continue
+		}
+		if sub.Room == room {
+			subs = append(subs, sub)
+		}
+	}
+	b.mu.RUnlock()
 
 	msg := Message{
 		FromNodeID: fromNodeID,
@@ -121,16 +138,16 @@ func (b *Broker) SendToRoom(fromNodeID int, fromUser string, room string, text s
 		Text:       text,
 	}
 
-	for id, sub := range b.subscribers {
-		if id == fromNodeID {
-			continue
+	dropped := 0
+	for _, sub := range subs {
+		select {
+		case sub.Ch <- msg:
+		default:
+			dropped++
 		}
-		if sub.Room == room {
-			select {
-			case sub.Ch <- msg:
-			default:
-			}
-		}
+	}
+	if dropped > 0 {
+		log.Printf("chat: dropped %d room messages (room=%q)", dropped, room)
 	}
 }
 
