@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"database/sql"
 
@@ -433,6 +434,14 @@ func (e *Engine) indexFields(df *ansi.DisplayFile) {
 		width = 80
 	}
 	e.currentFields = ansi.IndexFields(df, width)
+
+	// Overlay built-in value placeholders (e.g. {{USERNAME,30}}) after the art renders.
+	e.overlayValuePlaceholders()
+
+	// Special placeholder: {{CURSOR}} moves the cursor after art is rendered (and overlays are applied).
+	if f, ok := e.currentFields["CURSOR"]; ok {
+		_ = e.term.GotoXY(f.Row, f.Col)
+	}
 }
 
 // GetField returns a placeholder field (from the most recently displayed art).
@@ -442,6 +451,63 @@ func (e *Engine) GetField(id string) (ansi.Field, bool) {
 	}
 	f, ok := e.currentFields[id]
 	return f, ok
+}
+
+func (e *Engine) overlayValuePlaceholders() {
+	if e.currentFields == nil || e.currentUser == nil || !e.term.ANSIEnabled || e.services == nil {
+		return
+	}
+
+	// Helper to print a value at a field location, respecting optional width.
+	printAt := func(id, value string) {
+		f, ok := e.currentFields[id]
+		if !ok {
+			return
+		}
+		if f.MaxLen > 0 {
+			value = padOrTrim(value, f.MaxLen)
+		}
+		_ = e.term.GotoXY(f.Row, f.Col)
+		_ = e.term.Send(value)
+	}
+
+	u := e.currentUser
+
+	printAt("USERNAME", u.Username)
+	printAt("NAME", u.Username) // alias
+	printAt("REAL_NAME", u.RealName)
+	printAt("LOCATION", u.Location)
+	printAt("EMAIL", u.Email)
+
+	printAt("LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
+	printAt("SECURITY_LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
+	printAt("CALLS", fmt.Sprintf("%d", u.TotalCalls))
+	printAt("TOTAL_CALLS", fmt.Sprintf("%d", u.TotalCalls))
+
+	if u.LastCallAt != nil {
+		printAt("LAST_ON", u.LastCallAt.Format("2006-01-02 15:04"))
+	} else {
+		printAt("LAST_ON", "")
+	}
+	printAt("CREATED", u.CreatedAt.Format("2006-01-02"))
+	printAt("UPDATED", u.UpdatedAt.Format("2006-01-02"))
+
+	printAt("NODE_ID", fmt.Sprintf("%d", e.services.NodeID))
+	printAt("NOW", time.Now().Format("2006-01-02 15:04"))
+}
+
+func padOrTrim(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) > width {
+		return string(r[:width])
+	}
+	if len(r) < width {
+		return s + strings.Repeat(" ", width-len(r))
+	}
+	return s
 }
 
 func (e *Engine) handleUserLogin(u *user.User) {
