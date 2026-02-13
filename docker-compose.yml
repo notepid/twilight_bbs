@@ -1,0 +1,13 @@
+services:
+  bbs:
+    build: .
+    ports:
+      - "2323:2323"    # Telnet
+      - "2222:2222"    # SSH
+    volumes:
+      - ./assets:/opt/bbs/assets       # Menu files, display files (live reload)
+      - ./data:/opt/bbs/data           # SQLite database, SSH host key, logs
+      - ./config.yaml:/opt/bbs/config.yaml:ro  # Configuration
+    restart: unless-stopped
+    environment:
+      - TZ=UTC

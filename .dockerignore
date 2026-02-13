@@ -1,0 +1,9 @@
+.git
+.gitignore
+data/
+*.db
+docs/
+.beads/
+.cursor/
+*.md
+!README.md
