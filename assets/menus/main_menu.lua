@@ -12,6 +12,7 @@ function menu.on_key(node, key)
         node:goto_menu("door_menu")
     elseif key == "W" or key == "w" then
         node:show_online()
+        node:goto_menu("main_menu")
     elseif key == "Y" or key == "y" then
         node:goto_menu("user_stats")
     elseif key == "!" then
@@ -24,6 +25,7 @@ end
 function menu.on_input(node, input)
     if input == "/who" then
         node:show_online()
+        node:goto_menu("main_menu")
     elseif input == "/quit" or input == "/q" then
         node:goto_menu("goodbye")
     end

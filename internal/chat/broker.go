@@ -27,13 +27,54 @@ type Subscriber struct {
 type Broker struct {
 	mu          sync.RWMutex
 	subscribers map[int]*Subscriber
+	online      map[int]*OnlineUser
 }
 
 // NewBroker creates a new chat message broker.
 func NewBroker() *Broker {
 	return &Broker{
 		subscribers: make(map[int]*Subscriber),
+		online:      make(map[int]*OnlineUser),
 	}
+}
+
+// OnlineUser represents a connected user (regardless of chat participation).
+type OnlineUser struct {
+	NodeID   int
+	UserName string
+	Room     string
+}
+
+// RegisterOnline marks a node as connected.
+func (b *Broker) RegisterOnline(nodeID int, userName string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.online[nodeID] = &OnlineUser{
+		NodeID:   nodeID,
+		UserName: userName,
+		Room:     "",
+	}
+}
+
+// UpdateOnlineName updates the displayed username for a connected node.
+func (b *Broker) UpdateOnlineName(nodeID int, userName string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	u, ok := b.online[nodeID]
+	if !ok {
+		b.online[nodeID] = &OnlineUser{NodeID: nodeID, UserName: userName}
+		return
+	}
+	u.UserName = userName
+}
+
+// UnregisterOnline removes a node from the online list.
+func (b *Broker) UnregisterOnline(nodeID int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.online, nodeID)
 }
 
 // Subscribe registers a node to receive chat messages.
@@ -47,6 +88,12 @@ func (b *Broker) Subscribe(nodeID int, userName string) *Subscriber {
 		Ch:       make(chan Message, 32),
 	}
 	b.subscribers[nodeID] = sub
+	// Ensure the node is visible in the online list.
+	if u, ok := b.online[nodeID]; ok {
+		u.UserName = userName
+	} else {
+		b.online[nodeID] = &OnlineUser{NodeID: nodeID, UserName: userName}
+	}
 	return sub
 }
 
@@ -159,6 +206,9 @@ func (b *Broker) JoinRoom(nodeID int, room string) {
 	if sub, ok := b.subscribers[nodeID]; ok {
 		sub.Room = room
 	}
+	if u, ok := b.online[nodeID]; ok {
+		u.Room = room
+	}
 }
 
 // LeaveRoom removes a subscriber from their current room.
@@ -168,6 +218,9 @@ func (b *Broker) LeaveRoom(nodeID int) {
 
 	if sub, ok := b.subscribers[nodeID]; ok {
 		sub.Room = ""
+	}
+	if u, ok := b.online[nodeID]; ok {
+		u.Room = ""
 	}
 }
 
@@ -185,24 +238,17 @@ func (b *Broker) RoomMembers(room string) []string {
 	return members
 }
 
-// OnlineUsers returns a list of all subscribed users.
-type OnlineUser struct {
-	NodeID   int
-	UserName string
-	Room     string
-}
-
-// ListOnline returns all currently subscribed users.
+// ListOnline returns all currently connected users.
 func (b *Broker) ListOnline() []OnlineUser {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	var users []OnlineUser
-	for _, sub := range b.subscribers {
+	for _, u := range b.online {
 		users = append(users, OnlineUser{
-			NodeID:   sub.NodeID,
-			UserName: sub.UserName,
-			Room:     sub.Room,
+			NodeID:   u.NodeID,
+			UserName: u.UserName,
+			Room:     u.Room,
 		})
 	}
 	return users
