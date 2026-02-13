@@ -139,7 +139,7 @@ func (t *Terminal) GetLine(maxLen int) (string, error) {
 	}
 }
 
-// GetPassword reads a line of input without echo.
+// GetPassword reads a line of input without echo, displaying asterisks.
 func (t *Terminal) GetPassword(maxLen int) (string, error) {
 	// Disable echo
 	if t.echoControl != nil {
@@ -168,10 +168,12 @@ func (t *Terminal) GetPassword(maxLen int) (string, error) {
 		case 8, 127:
 			if len(buf) > 0 {
 				buf = buf[:len(buf)-1]
+				t.Send("\b \b")
 			}
 		default:
 			if b >= 32 && b < 127 && len(buf) < maxLen {
 				buf = append(buf, b)
+				t.Send("*")
 			}
 		}
 	}
