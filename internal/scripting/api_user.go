@@ -1,7 +1,7 @@
 package scripting
 
 import (
-	"github.com/mikael/twilight_bbs/internal/user"
+	"github.com/notepid/twilight_bbs/internal/user"
 	lua "github.com/yuin/gopher-lua"
 )
 

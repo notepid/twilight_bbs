@@ -3,8 +3,8 @@ package scripting
 import (
 	"fmt"
 
-	"github.com/mikael/twilight_bbs/internal/filearea"
-	"github.com/mikael/twilight_bbs/internal/user"
+	"github.com/notepid/twilight_bbs/internal/filearea"
+	"github.com/notepid/twilight_bbs/internal/user"
 	lua "github.com/yuin/gopher-lua"
 )
 

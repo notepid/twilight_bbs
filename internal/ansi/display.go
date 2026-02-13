@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mikael/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/terminal"
 )
 
 // DisplayFile represents a loaded ANSI or ASCII display file.

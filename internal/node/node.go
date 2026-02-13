@@ -6,14 +6,14 @@ import (
 
 	"database/sql"
 
-	"github.com/mikael/twilight_bbs/internal/ansi"
-	"github.com/mikael/twilight_bbs/internal/chat"
-	"github.com/mikael/twilight_bbs/internal/door"
-	"github.com/mikael/twilight_bbs/internal/filearea"
-	"github.com/mikael/twilight_bbs/internal/menu"
-	"github.com/mikael/twilight_bbs/internal/message"
-	"github.com/mikael/twilight_bbs/internal/terminal"
-	"github.com/mikael/twilight_bbs/internal/user"
+	"github.com/notepid/twilight_bbs/internal/ansi"
+	"github.com/notepid/twilight_bbs/internal/chat"
+	"github.com/notepid/twilight_bbs/internal/door"
+	"github.com/notepid/twilight_bbs/internal/filearea"
+	"github.com/notepid/twilight_bbs/internal/menu"
+	"github.com/notepid/twilight_bbs/internal/message"
+	"github.com/notepid/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/user"
 )
 
 // Node represents a single BBS connection (one user session).

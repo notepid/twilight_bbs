@@ -1,6 +1,6 @@
 package door
 
-import "github.com/mikael/twilight_bbs/internal/user"
+import "github.com/notepid/twilight_bbs/internal/user"
 
 // Config holds configuration for a single door.
 type Config struct {
