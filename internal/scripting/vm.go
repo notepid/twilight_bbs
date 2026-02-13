@@ -16,7 +16,13 @@ type VM struct {
 
 const (
 	luaMaxMemoryBytes = 32 * 1024 * 1024
-	luaCallTimeout    = 5 * time.Second
+	// luaLoadTimeout bounds script file loading/execution on startup.
+	// Menu handler calls (on_enter/on_key/etc) are allowed to block on user I/O.
+	luaLoadTimeout = 5 * time.Second
+	// luaHandlerTimeout can be set to a long duration to guard against runaway
+	// scripts, but should not be short since handlers commonly wait for input.
+	// A non-positive value disables handler timeouts.
+	luaHandlerTimeout = 0
 )
 
 // NewVM creates a new Lua VM with the standard libraries loaded.
@@ -38,7 +44,7 @@ func (vm *VM) Close() {
 // LoadScript loads and executes a Lua script file.
 // The script is expected to return a table with menu handler functions.
 func (vm *VM) LoadScript(path string) error {
-	return vm.withTimeout(func() error {
+	return vm.withTimeout(luaLoadTimeout, func() error {
 		if err := vm.L.DoFile(path); err != nil {
 			return fmt.Errorf("load script %s: %w", path, err)
 		}
@@ -65,7 +71,7 @@ func (vm *VM) CallMenuHandler(funcName string, args ...lua.LValue) error {
 		return fmt.Errorf("menu.%s is not a function", funcName)
 	}
 
-	return vm.withTimeout(func() error {
+	return vm.withTimeout(luaHandlerTimeout, func() error {
 		if err := vm.L.CallByParam(lua.P{
 			Fn:      fn,
 			NRet:    0,
@@ -88,13 +94,17 @@ func (vm *VM) HasMenuHandler(funcName string) bool {
 	return ok
 }
 
-func (vm *VM) withTimeout(fn func() error) error {
+func (vm *VM) withTimeout(timeout time.Duration, fn func() error) error {
 	prev := vm.L.Context()
+	if timeout <= 0 {
+		return fn()
+	}
+
 	ctx := prev
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(ctx, luaCallTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	vm.L.SetContext(ctx)
