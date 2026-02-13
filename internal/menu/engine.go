@@ -264,7 +264,7 @@ func (e *Engine) runMenu(name string) error {
 			// For now let's continue to display part
 		}
 	} else {
-		// Even if no script, we might want to close old VM? 
+		// Even if no script, we might want to close old VM?
 		// Actually the existing code didn't close old VM if !m.HasScript(), which might be a bug or intentional to keep previous state?
 		// But runMenu creates a NEW VM every time. So if we don't have a script, we are just pausing.
 		// Let's stick to the previous logic but reorganized.
@@ -289,7 +289,7 @@ func (e *Engine) runMenu(name string) error {
 			}
 		}
 	}
-	
+
 	if !m.HasScript() {
 		e.term.Pause()
 		return nil
