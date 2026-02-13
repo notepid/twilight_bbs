@@ -66,7 +66,7 @@ function do_register(node)
         return
     end
 
-    node:sendln("  Password: ")
+    node:send("  Password: ")
     local password = node:password()
     if password == nil or password == "" or #password < 4 then
         node:sendln("  Password must be at least 4 characters.")
@@ -75,7 +75,7 @@ function do_register(node)
         return
     end
 
-    node:sendln("  Confirm password: ")
+    node:send("  Confirm password: ")
     local confirm = node:password()
     if confirm ~= password then
         node:sendln("  Passwords do not match.")
