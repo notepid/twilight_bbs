@@ -1,6 +1,10 @@
 -- message_menu.lua - Message bases menu
 local menu = {}
 
+function menu.on_load(node)
+    node:cls()
+end
+
 function get_current_or_default_area(node)
     local current_area = node:get_state("current_area")
     if current_area then
@@ -115,7 +119,7 @@ function read_messages(node, area_id)
                 end
                 node:sendln("  Subject: " .. m.subject)
                 node:sendln("  Date:    " .. m.date)
-                node:sendln("  ─────────────────────────────────────────────")
+                node:sendln("  ---------------------------------------------")
                 node:sendln("")
                 node:sendln(m.body)
                 node:sendln("")

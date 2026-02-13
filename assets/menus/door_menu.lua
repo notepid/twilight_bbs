@@ -1,6 +1,10 @@
 -- door_menu.lua - DOS doors menu
 local menu = {}
 
+function menu.on_load(node)
+    node:cls()
+end
+
 function menu.on_enter(node)
     -- Check if dosemu2 is available
     if not door.available() then
