@@ -18,8 +18,8 @@ A multi-node ANSI BBS written in Go with Lua scripting, supporting telnet and SS
 
 ```bash
 # Build and run locally
-go build -o bbs ./cmd/bbs/
-./bbs -config config.yaml
+go build -o tbbs ./cmd/bbs/
+./tbbs -config config.yaml
 
 # Connect
 telnet localhost 2323

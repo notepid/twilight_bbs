@@ -1,4 +1,4 @@
-module github.com/mikael/twilight_bbs
+module github.com/notepid/twilight_bbs
 
 go 1.24.0
 

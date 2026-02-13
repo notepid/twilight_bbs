@@ -3,7 +3,7 @@ package scripting
 import (
 	"strings"
 
-	"github.com/mikael/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/terminal"
 	lua "github.com/yuin/gopher-lua"
 )
 

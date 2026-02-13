@@ -6,8 +6,8 @@ import (
 	"io"
 	"log"
 
-	"github.com/mikael/twilight_bbs/internal/door"
-	"github.com/mikael/twilight_bbs/internal/user"
+	"github.com/notepid/twilight_bbs/internal/door"
+	"github.com/notepid/twilight_bbs/internal/user"
 	lua "github.com/yuin/gopher-lua"
 )
 
