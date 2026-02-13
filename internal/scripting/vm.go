@@ -1,8 +1,10 @@
 package scripting
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -12,12 +14,18 @@ type VM struct {
 	L *lua.LState
 }
 
+const (
+	luaMaxMemoryBytes = 32 * 1024 * 1024
+	luaCallTimeout    = 5 * time.Second
+)
+
 // NewVM creates a new Lua VM with the standard libraries loaded.
 func NewVM() *VM {
 	L := lua.NewState(lua.Options{
 		CallStackSize: 120,
 		RegistrySize:  120 * 20,
 	})
+	L.SetMx(luaMaxMemoryBytes)
 
 	return &VM{L: L}
 }
@@ -30,10 +38,12 @@ func (vm *VM) Close() {
 // LoadScript loads and executes a Lua script file.
 // The script is expected to return a table with menu handler functions.
 func (vm *VM) LoadScript(path string) error {
-	if err := vm.L.DoFile(path); err != nil {
-		return fmt.Errorf("load script %s: %w", path, err)
-	}
-	return nil
+	return vm.withTimeout(func() error {
+		if err := vm.L.DoFile(path); err != nil {
+			return fmt.Errorf("load script %s: %w", path, err)
+		}
+		return nil
+	})
 }
 
 // CallMenuHandler calls a function on the menu table returned by the script.
@@ -55,15 +65,16 @@ func (vm *VM) CallMenuHandler(funcName string, args ...lua.LValue) error {
 		return fmt.Errorf("menu.%s is not a function", funcName)
 	}
 
-	if err := vm.L.CallByParam(lua.P{
-		Fn:      fn,
-		NRet:    0,
-		Protect: true,
-	}, args...); err != nil {
-		return fmt.Errorf("call menu.%s: %w", funcName, err)
-	}
-
-	return nil
+	return vm.withTimeout(func() error {
+		if err := vm.L.CallByParam(lua.P{
+			Fn:      fn,
+			NRet:    0,
+			Protect: true,
+		}, args...); err != nil {
+			return fmt.Errorf("call menu.%s: %w", funcName, err)
+		}
+		return nil
+	})
 }
 
 // HasMenuHandler checks if the menu table has a specific handler function.
@@ -75,6 +86,21 @@ func (vm *VM) HasMenuHandler(funcName string) bool {
 	fn := menuTable.RawGetString(funcName)
 	_, ok := fn.(*lua.LFunction)
 	return ok
+}
+
+func (vm *VM) withTimeout(fn func() error) error {
+	prev := vm.L.Context()
+	ctx := prev
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, luaCallTimeout)
+	defer cancel()
+
+	vm.L.SetContext(ctx)
+	defer vm.L.SetContext(prev)
+
+	return fn()
 }
 
 // getMenuTable finds the menu table - either as the return value of the

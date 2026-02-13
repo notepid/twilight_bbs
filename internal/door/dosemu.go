@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 )
 
 // Launcher manages launching DOS doors via dosemu2.
@@ -46,13 +48,17 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 	log.Printf("Door: launching %s for node %d (drop file: %s)",
 		session.DoorConfig.Name, session.NodeID, dropPath)
 
+	if err := validateDoorCommand(session.DoorConfig.Command); err != nil {
+		return fmt.Errorf("invalid door command: %w", err)
+	}
+
 	// Build dosemu2 command
 	// dosemu2 can be run in dumb terminal mode with -t
 	// The door executable runs inside the DOS environment
 	cmd := exec.Command(l.DosemuPath,
-		"-t",                    // dumb terminal mode
+		"-t",                         // dumb terminal mode
 		"-E", session.DoorConfig.Command, // execute command
-		"--Fimagedir", l.DriveCPath, // set drive C
+		"--Fimagedir", l.DriveCPath,  // set drive C
 	)
 
 	cmd.Dir = sessionDir
@@ -79,11 +85,13 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 
 	// Bridge I/O with goroutines
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
+
+	stdinDone := make(chan struct{})
 
 	// User -> Door (stdin)
 	go func() {
-		defer wg.Done()
+		defer close(stdinDone)
 		defer cmdStdin.Close()
 		io.Copy(cmdStdin, stdin)
 	}()
@@ -97,6 +105,13 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 	// Wait for the process to exit
 	err = cmd.Wait()
 	wg.Wait()
+
+	// Don't hang the session if stdin never unblocks after the door exits.
+	select {
+	case <-stdinDone:
+	case <-time.After(200 * time.Millisecond):
+		log.Printf("Door: stdin copy still running after exit (node %d)", session.NodeID)
+	}
 
 	if err != nil {
 		log.Printf("Door %s exited with error: %v", session.DoorConfig.Name, err)
@@ -113,4 +128,27 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 func (l *Launcher) Available() bool {
 	_, err := exec.LookPath(l.DosemuPath)
 	return err == nil
+}
+
+func validateDoorCommand(cmd string) error {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return fmt.Errorf("empty")
+	}
+	if len(cmd) > 256 {
+		return fmt.Errorf("too long")
+	}
+	// Disallow control characters and common command separators.
+	if strings.ContainsAny(cmd, "\x00\r\n") {
+		return fmt.Errorf("contains control characters")
+	}
+	if strings.ContainsAny(cmd, "&|;><`$") {
+		return fmt.Errorf("contains shell metacharacters")
+	}
+	for _, r := range cmd {
+		if r < 32 || r > 126 {
+			return fmt.Errorf("contains non-ASCII characters")
+		}
+	}
+	return nil
 }

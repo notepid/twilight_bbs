@@ -20,11 +20,11 @@ const (
 	GA   byte = 249 // Go Ahead
 
 	// Telnet options
-	OptEcho    byte = 1   // Echo
-	OptSGA     byte = 3   // Suppress Go Ahead
-	OptTType   byte = 24  // Terminal Type
-	OptNAWS    byte = 31  // Negotiate About Window Size
-	OptLinemod byte = 34  // Linemode
+	OptEcho    byte = 1  // Echo
+	OptSGA     byte = 3  // Suppress Go Ahead
+	OptTType   byte = 24 // Terminal Type
+	OptNAWS    byte = 31 // Negotiate About Window Size
+	OptLinemod byte = 34 // Linemode
 )
 
 // TelnetConn wraps a raw TCP connection with telnet protocol handling.
@@ -36,19 +36,19 @@ type TelnetConn struct {
 	mu     sync.Mutex
 
 	// Terminal properties discovered via negotiation
-	TermType string
-	Width    int
-	Height   int
+	TermType    string
+	Width       int
+	Height      int
 	ANSICapable bool
 }
 
 // NewTelnetConn wraps a raw TCP connection with telnet protocol handling.
 func NewTelnetConn(conn net.Conn) *TelnetConn {
 	return &TelnetConn{
-		conn:   conn,
-		reader: bufio.NewReaderSize(conn, 1024),
-		Width:  80,
-		Height: 24,
+		conn:        conn,
+		reader:      bufio.NewReaderSize(conn, 1024),
+		Width:       80,
+		Height:      24,
 		ANSICapable: true, // assume ANSI until told otherwise
 	}
 }
@@ -250,6 +250,7 @@ func (tc *TelnetConn) handleDoDont(cmd, opt byte) {
 // handleSubNegotiation reads and processes a sub-negotiation sequence.
 func (tc *TelnetConn) handleSubNegotiation() error {
 	// Read until IAC SE
+	const maxSubnegLen = 1024
 	var buf []byte
 	for {
 		b, err := tc.reader.ReadByte()
@@ -266,12 +267,18 @@ func (tc *TelnetConn) handleSubNegotiation() error {
 			}
 			if next == IAC {
 				buf = append(buf, IAC)
+				if len(buf) > maxSubnegLen {
+					return fmt.Errorf("subneg too long")
+				}
 				continue
 			}
 			// Unexpected - treat as end
 			break
 		}
 		buf = append(buf, b)
+		if len(buf) > maxSubnegLen {
+			return fmt.Errorf("subneg too long")
+		}
 	}
 
 	if len(buf) == 0 {
@@ -288,7 +295,11 @@ func (tc *TelnetConn) handleSubNegotiation() error {
 	case OptTType:
 		// TTYPE: option(1) + IS(1) + type string
 		if len(buf) >= 2 && buf[1] == 0 {
-			tc.TermType = string(buf[2:])
+			term := string(buf[2:])
+			if len(term) > 64 {
+				term = term[:64]
+			}
+			tc.TermType = term
 			tc.ANSICapable = isANSITermType(tc.TermType)
 		}
 	}
