@@ -16,6 +16,8 @@ function menu.on_enter(node)
         return
     end
 
+    node:send("  Password: ")
+
     local password = node:password()
     if password == nil or password == "" then
         node:sendln("  No password entered.")
