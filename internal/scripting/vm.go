@@ -96,16 +96,18 @@ func (vm *VM) HasMenuHandler(funcName string) bool {
 
 func (vm *VM) withTimeout(timeout time.Duration, fn func() error) error {
 	prev := vm.L.Context()
-	if timeout <= 0 {
-		return fn()
+
+	baseCtx := prev
+	if baseCtx == nil {
+		baseCtx = context.Background()
 	}
 
-	ctx := prev
-	if ctx == nil {
-		ctx = context.Background()
+	ctx := baseCtx
+	var cancel func()
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(baseCtx, timeout)
+		defer cancel()
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	vm.L.SetContext(ctx)
 	defer vm.L.SetContext(prev)
