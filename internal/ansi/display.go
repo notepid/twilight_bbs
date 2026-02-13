@@ -154,7 +154,7 @@ func Display(term *terminal.Terminal, df *DisplayFile) error {
 func displayANSI(term *terminal.Terminal, df *DisplayFile) error {
 	// Send the raw ANSI data - it already contains escape sequences
 	// We send in chunks to allow for network buffering
-	data := df.Data
+	data := BlankPlaceholders(df.Data)
 	chunkSize := 1024
 
 	for i := 0; i < len(data); i += chunkSize {
@@ -177,7 +177,7 @@ func displayANSI(term *terminal.Terminal, df *DisplayFile) error {
 
 // displayASCII streams an ASCII file with CRLF line endings.
 func displayASCII(term *terminal.Terminal, df *DisplayFile) error {
-	lines := splitLines(df.Data)
+	lines := splitLines(BlankPlaceholders(df.Data))
 	for _, line := range lines {
 		if err := term.SendLn(string(line)); err != nil {
 			return fmt.Errorf("display ASCII: %w", err)
@@ -217,7 +217,7 @@ func DisplayWithPaging(term *terminal.Terminal, df *DisplayFile, pageHeight int)
 	}
 
 	// ASCII paging
-	lines := splitLines(df.Data)
+	lines := splitLines(BlankPlaceholders(df.Data))
 	lineCount := 0
 
 	for _, line := range lines {

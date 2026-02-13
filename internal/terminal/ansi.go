@@ -4,13 +4,13 @@ import "fmt"
 
 // ANSI color constants matching the BBS standard.
 const (
-	Reset       = "\033[0m"
-	Bold        = "\033[1m"
-	Dim         = "\033[2m"
-	Underscore  = "\033[4m"
-	Blink       = "\033[5m"
-	Reverse     = "\033[7m"
-	Hidden      = "\033[8m"
+	Reset      = "\033[0m"
+	Bold       = "\033[1m"
+	Dim        = "\033[2m"
+	Underscore = "\033[4m"
+	Blink      = "\033[5m"
+	Reverse    = "\033[7m"
+	Hidden     = "\033[8m"
 
 	// Foreground colors
 	FgBlack   = "\033[30m"
@@ -35,14 +35,14 @@ const (
 
 // Bright foreground color helpers (Bold + foreground).
 const (
-	FgDarkGray     = "\033[1;30m"
-	FgBrightRed    = "\033[1;31m"
-	FgBrightGreen  = "\033[1;32m"
-	FgYellow       = "\033[1;33m"
-	FgBrightBlue   = "\033[1;34m"
+	FgDarkGray      = "\033[1;30m"
+	FgBrightRed     = "\033[1;31m"
+	FgBrightGreen   = "\033[1;32m"
+	FgYellow        = "\033[1;33m"
+	FgBrightBlue    = "\033[1;34m"
 	FgBrightMagenta = "\033[1;35m"
-	FgBrightCyan   = "\033[1;36m"
-	FgWhite        = "\033[1;37m"
+	FgBrightCyan    = "\033[1;36m"
+	FgWhite         = "\033[1;37m"
 )
 
 // ClearScreen sends the ANSI clear-screen sequence and homes the cursor.
@@ -110,6 +110,16 @@ func SaveCursor() string {
 // RestoreCursor returns the ANSI restore-cursor-position sequence.
 func RestoreCursor() string {
 	return "\033[u"
+}
+
+// HideCursor returns the ANSI hide-cursor sequence.
+func HideCursor() string {
+	return "\033[?25l"
+}
+
+// ShowCursor returns the ANSI show-cursor sequence.
+func ShowCursor() string {
+	return "\033[?25h"
 }
 
 // ClearLine clears the current line.
