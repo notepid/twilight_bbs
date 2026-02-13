@@ -1,23 +1,38 @@
 -- message_menu.lua - Message bases menu
 local menu = {}
-local current_area = nil
+
+function get_current_or_default_area(node)
+    local current_area = node:get_state("current_area")
+    if current_area then
+        return current_area
+    end
+    
+    local areas = msg.areas()
+    if areas and #areas > 0 then
+        return areas[1].id
+    end
+    
+    return nil
+end
 
 function menu.on_key(node, key)
     if key == "L" or key == "l" then
         list_areas(node)
     elseif key == "R" or key == "r" then
+        local current_area = get_current_or_default_area(node)
         if current_area then
             read_messages(node, current_area)
         else
-            node:sendln("\r\n  Select an area first (press L).")
+            node:sendln("\r\n  No message areas available.")
             node:pause()
         end
         node:goto_menu("message_menu")
     elseif key == "P" or key == "p" then
+        local current_area = get_current_or_default_area(node)
         if current_area then
             post_message(node, current_area)
         else
-            node:sendln("\r\n  Select an area first (press L).")
+            node:sendln("\r\n  No message areas available.")
             node:pause()
         end
         node:goto_menu("message_menu")
@@ -58,7 +73,7 @@ function list_areas(node)
     if area_id then
         local area = msg.get_area(area_id)
         if area then
-            current_area = area_id
+            node:set_state("current_area", area_id)
             node:sendln("  Current area: " .. area.name)
             node:pause()
         else

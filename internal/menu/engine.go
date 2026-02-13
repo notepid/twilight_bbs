@@ -64,6 +64,9 @@ type Engine struct {
 	gosubMenu  string
 	returnMenu bool
 	disconnect bool
+
+	// Persistent menu state
+	menuState map[string]map[string]interface{}
 }
 
 // NewEngine creates a new menu engine for a session.
@@ -72,13 +75,14 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	nodeAPI := scripting.NewNodeAPI(term)
 
 	e := &Engine{
-		registry: registry,
-		loader:   loader,
-		term:     term,
-		services: svc,
-		vm:       vm,
-		nodeAPI:  nodeAPI,
-		running:  true,
+		registry:  registry,
+		loader:    loader,
+		term:      term,
+		services:  svc,
+		vm:        vm,
+		nodeAPI:   nodeAPI,
+		running:   true,
+		menuState: make(map[string]map[string]interface{}),
 	}
 
 	// Wire navigation callbacks
@@ -87,6 +91,10 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	nodeAPI.OnReturnMenu = e.handleReturnMenu
 	nodeAPI.OnDisconnect = e.handleDisconnect
 	nodeAPI.OnDisplay = e.handleDisplay
+
+	// Wire state callbacks
+	nodeAPI.OnSetMenuState = e.SetMenuState
+	nodeAPI.OnGetMenuState = e.GetMenuState
 
 	// Register the node API in the Lua VM
 	e.nodeUD = nodeAPI.Register(vm.L)
@@ -243,6 +251,7 @@ func (e *Engine) runMenu(name string) error {
 	oldVM := e.vm
 	e.vm = scripting.NewVM()
 	e.nodeUD = e.nodeAPI.Register(e.vm.L)
+	e.nodeAPI.CurrentMenuName = name
 
 	// Re-register APIs in the new VM
 	if e.userAPI != nil {
@@ -337,6 +346,23 @@ func (e *Engine) inputLoop(menuName string) error {
 // hasNavigationPending checks if a navigation signal has been set.
 func (e *Engine) hasNavigationPending() bool {
 	return e.nextMenu != "" || e.gosubMenu != "" || e.returnMenu || e.disconnect
+}
+
+// SetMenuState stores a value in the persistent state for a menu.
+func (e *Engine) SetMenuState(menuName, key string, value interface{}) {
+	if e.menuState[menuName] == nil {
+		e.menuState[menuName] = make(map[string]interface{})
+	}
+	e.menuState[menuName][key] = value
+}
+
+// GetMenuState retrieves a value from the persistent state for a menu.
+func (e *Engine) GetMenuState(menuName, key string) (interface{}, bool) {
+	if e.menuState[menuName] == nil {
+		return nil, false
+	}
+	val, ok := e.menuState[menuName][key]
+	return val, ok
 }
 
 // --- Callbacks ---

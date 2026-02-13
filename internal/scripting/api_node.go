@@ -18,10 +18,17 @@ type NodeAPI struct {
 	OnDisconnect func()
 	OnDisplay    func(name string) error
 
+	// State callbacks - set by the menu engine
+	OnSetMenuState func(menuName, key string, value interface{})
+	OnGetMenuState func(menuName, key string) (interface{}, bool)
+
 	// Inter-node callbacks (Phase 7+)
 	OnShowOnline func() error
 	OnEnterChat  func() error
 	OnLaunchDoor func(name string) error
+
+	// Current menu name for state access
+	CurrentMenuName string
 }
 
 // NewNodeAPI creates a Lua API instance bound to a terminal.
@@ -94,6 +101,12 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaReturnMenu))
 	case "disconnect":
 		L.Push(L.NewFunction(api.luaDisconnect))
+
+	// Methods - State
+	case "set_state":
+		L.Push(L.NewFunction(api.luaSetState))
+	case "get_state":
+		L.Push(L.NewFunction(api.luaGetState))
 
 	// Methods - Inter-node (Phase 7+)
 	case "show_online":
@@ -274,6 +287,71 @@ func (api *NodeAPI) luaDisconnect(L *lua.LState) int {
 		api.OnDisconnect()
 	}
 	return 0
+}
+
+// --- State Methods ---
+
+func (api *NodeAPI) luaSetState(L *lua.LState) int {
+	key := L.CheckString(2)
+	value := L.CheckAny(3)
+
+	if api.OnSetMenuState == nil {
+		return 0
+	}
+
+	// Convert Lua value to Go interface{}
+	var val interface{}
+	switch v := value.(type) {
+	case lua.LBool:
+		val = bool(v)
+	case lua.LNumber:
+		val = float64(v)
+	case lua.LString:
+		val = string(v)
+	default:
+		// For nil and other types, store as nil
+		if value == lua.LNil {
+			val = nil
+		} else {
+			val = nil
+		}
+	}
+
+	api.OnSetMenuState(api.CurrentMenuName, key, val)
+	return 0
+}
+
+func (api *NodeAPI) luaGetState(L *lua.LState) int {
+	key := L.CheckString(2)
+
+	if api.OnGetMenuState == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	val, ok := api.OnGetMenuState(api.CurrentMenuName, key)
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	// Convert Go interface{} to Lua value
+	switch v := val.(type) {
+	case nil:
+		L.Push(lua.LNil)
+	case bool:
+		L.Push(lua.LBool(v))
+	case float64:
+		L.Push(lua.LNumber(v))
+	case string:
+		L.Push(lua.LString(v))
+	case int:
+		L.Push(lua.LNumber(lua.LNumber(v)))
+	default:
+		L.Push(lua.LNil)
+	}
+
+	return 1
 }
 
 // --- Inter-node Methods (stubs, implemented in later phases) ---
