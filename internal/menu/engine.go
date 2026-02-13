@@ -54,6 +54,9 @@ type Engine struct {
 	// Current user
 	currentUser *user.User
 
+	// Fields indexed from the most recently displayed ANSI/ASCII art.
+	currentFields map[string]ansi.Field
+
 	// Current state
 	currentMenu string
 	menuStack   []string
@@ -95,6 +98,7 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	// Wire state callbacks
 	nodeAPI.OnSetMenuState = e.SetMenuState
 	nodeAPI.OnGetMenuState = e.GetMenuState
+	nodeAPI.OnGetField = e.GetField
 
 	// Register the node API in the Lua VM
 	e.nodeUD = nodeAPI.Register(vm.L)
@@ -287,6 +291,7 @@ func (e *Engine) runMenu(name string) error {
 			if err := ansi.Display(e.term, df); err != nil {
 				return fmt.Errorf("display menu %s: %w", name, err)
 			}
+			e.indexFields(df)
 		}
 	}
 
@@ -408,7 +413,35 @@ func (e *Engine) handleDisplay(name string) error {
 	if err != nil {
 		return err
 	}
-	return ansi.Display(e.term, df)
+	if err := ansi.Display(e.term, df); err != nil {
+		return err
+	}
+	e.indexFields(df)
+	return nil
+}
+
+func (e *Engine) indexFields(df *ansi.DisplayFile) {
+	if df == nil {
+		e.currentFields = nil
+		return
+	}
+	width := e.term.Width
+	if df.Sauce != nil && df.Sauce.TInfo1 > 0 {
+		width = int(df.Sauce.TInfo1)
+	}
+	if width <= 0 {
+		width = 80
+	}
+	e.currentFields = ansi.IndexFields(df, width)
+}
+
+// GetField returns a placeholder field (from the most recently displayed art).
+func (e *Engine) GetField(id string) (ansi.Field, bool) {
+	if e.currentFields == nil {
+		return ansi.Field{}, false
+	}
+	f, ok := e.currentFields[id]
+	return f, ok
 }
 
 func (e *Engine) handleUserLogin(u *user.User) {

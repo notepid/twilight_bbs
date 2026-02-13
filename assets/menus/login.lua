@@ -2,8 +2,19 @@
 local menu = {}
 
 function menu.on_enter(node)
-    node:sendln("")
-    local username = node:ask("  Username (NEW for new user): ", 30)
+    -- Save where the art left the cursor so we can print messages cleanly
+    -- after doing in-place field editing.
+    node:save_cursor()
+
+    local username = nil
+
+    -- Prefer placeholders in the art file (e.g. {{USER,30}} / {{PASS,30}}).
+    username = node:input_field("USER", 30)
+    if username == nil then
+        node:sendln("")
+        username = node:ask("  Username (NEW for new user): ", 30)
+    end
+
     if username == nil or username == "" then
         node:sendln("")
         node:sendln("  No username entered.")
@@ -12,18 +23,25 @@ function menu.on_enter(node)
     end
 
     if string.upper(username) == "NEW" then
+        node:restore_cursor()
         do_register(node)
         return
     end
 
-    node:send("  Password: ")
-
-    local password = node:password()
+    local password = nil
+    password = node:password_field("PASS", 30)
+    if password == nil then
+        node:send("  Password: ")
+        password = node:password()
+    end
     if password == nil or password == "" then
+        node:restore_cursor()
         node:sendln("  No password entered.")
         node:disconnect()
         return
     end
+
+    node:restore_cursor()
 
     local user, err = users.login(username, password)
     if user == nil then

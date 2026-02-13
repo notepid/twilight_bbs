@@ -3,6 +3,7 @@ package scripting
 import (
 	"strings"
 
+	"github.com/notepid/twilight_bbs/internal/ansi"
 	"github.com/notepid/twilight_bbs/internal/terminal"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -21,6 +22,7 @@ type NodeAPI struct {
 	// State callbacks - set by the menu engine
 	OnSetMenuState func(menuName, key string, value interface{})
 	OnGetMenuState func(menuName, key string) (interface{}, bool)
+	OnGetField     func(id string) (ansi.Field, bool)
 
 	// Inter-node callbacks (Phase 7+)
 	OnShowOnline func() error
@@ -77,6 +79,14 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaPause))
 	case "more":
 		L.Push(L.NewFunction(api.luaPause)) // alias
+	case "save_cursor":
+		L.Push(L.NewFunction(api.luaSaveCursor))
+	case "restore_cursor":
+		L.Push(L.NewFunction(api.luaRestoreCursor))
+	case "cursor_off":
+		L.Push(L.NewFunction(api.luaCursorOff))
+	case "cursor_on":
+		L.Push(L.NewFunction(api.luaCursorOn))
 
 	// Methods - Input
 	case "getkey":
@@ -91,6 +101,16 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaPassword))
 	case "yesno":
 		L.Push(L.NewFunction(api.luaYesNo))
+
+	// Methods - Fields
+	case "field":
+		L.Push(L.NewFunction(api.luaField))
+	case "edit_field":
+		L.Push(L.NewFunction(api.luaEditField))
+	case "input_field":
+		L.Push(L.NewFunction(api.luaInputField))
+	case "password_field":
+		L.Push(L.NewFunction(api.luaPasswordField))
 
 	// Methods - Navigation
 	case "goto_menu":
@@ -183,6 +203,34 @@ func (api *NodeAPI) luaPause(L *lua.LState) int {
 	return 0
 }
 
+func (api *NodeAPI) luaSaveCursor(L *lua.LState) int {
+	if api.term.ANSIEnabled {
+		api.term.Send(terminal.SaveCursor())
+	}
+	return 0
+}
+
+func (api *NodeAPI) luaRestoreCursor(L *lua.LState) int {
+	if api.term.ANSIEnabled {
+		api.term.Send(terminal.RestoreCursor())
+	}
+	return 0
+}
+
+func (api *NodeAPI) luaCursorOff(L *lua.LState) int {
+	if api.term.ANSIEnabled {
+		api.term.Send(terminal.HideCursor())
+	}
+	return 0
+}
+
+func (api *NodeAPI) luaCursorOn(L *lua.LState) int {
+	if api.term.ANSIEnabled {
+		api.term.Send(terminal.ShowCursor())
+	}
+	return 0
+}
+
 // --- Input Methods ---
 
 func (api *NodeAPI) luaGetKey(L *lua.LState) int {
@@ -248,6 +296,129 @@ func (api *NodeAPI) luaYesNo(L *lua.LState) int {
 		return 1
 	}
 	L.Push(lua.LBool(result))
+	return 1
+}
+
+// --- Field Methods ---
+
+func (api *NodeAPI) luaField(L *lua.LState) int {
+	id := strings.TrimSpace(L.CheckString(2))
+	if id == "" || api.OnGetField == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	f, ok := api.OnGetField(id)
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	L.Push(lua.LNumber(f.Row))
+	L.Push(lua.LNumber(f.Col))
+	L.Push(lua.LNumber(f.MaxLen))
+	return 3
+}
+
+func (api *NodeAPI) luaEditField(L *lua.LState) int {
+	id := strings.TrimSpace(L.CheckString(2))
+	if id == "" || api.OnGetField == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	f, ok := api.OnGetField(id)
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	override := L.OptInt(3, 0)
+	maxLen := override
+	if maxLen <= 0 {
+		maxLen = f.MaxLen
+	}
+	if maxLen <= 0 {
+		maxLen = 80
+	}
+
+	api.term.GotoXY(f.Row, f.Col)
+	line, err := api.term.GetLine(maxLen)
+	if err != nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+	L.Push(lua.LString(line))
+	return 1
+}
+
+func (api *NodeAPI) luaInputField(L *lua.LState) int {
+	id := strings.TrimSpace(L.CheckString(2))
+	if id == "" || api.OnGetField == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	f, ok := api.OnGetField(id)
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	override := L.OptInt(3, 0)
+	maxLen := override
+	if maxLen <= 0 {
+		maxLen = f.MaxLen
+	}
+	if maxLen <= 0 {
+		maxLen = 80
+	}
+
+	api.term.GotoXY(f.Row, f.Col)
+	api.term.Send(strings.Repeat(" ", maxLen))
+	api.term.GotoXY(f.Row, f.Col)
+
+	line, err := api.term.GetLine(maxLen)
+	if err != nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+	L.Push(lua.LString(line))
+	return 1
+}
+
+func (api *NodeAPI) luaPasswordField(L *lua.LState) int {
+	id := strings.TrimSpace(L.CheckString(2))
+	if id == "" || api.OnGetField == nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	f, ok := api.OnGetField(id)
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
+	override := L.OptInt(3, 0)
+	maxLen := override
+	if maxLen <= 0 {
+		maxLen = f.MaxLen
+	}
+	if maxLen <= 0 {
+		maxLen = 40
+	}
+
+	api.term.GotoXY(f.Row, f.Col)
+	api.term.Send(strings.Repeat(" ", maxLen))
+	api.term.GotoXY(f.Row, f.Col)
+
+	pass, err := api.term.GetPassword(maxLen)
+	if err != nil {
+		L.Push(lua.LNil)
+		return 1
+	}
+	L.Push(lua.LString(pass))
 	return 1
 }
 

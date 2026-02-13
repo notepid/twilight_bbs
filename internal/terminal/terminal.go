@@ -183,11 +183,17 @@ func (t *Terminal) GetPassword(maxLen int) (string, error) {
 // Pause displays "Press any key to continue..." and waits for a keypress.
 func (t *Terminal) Pause() error {
 	if t.ANSIEnabled {
+		// Hide the cursor before displaying the pause message
+		t.Send("\033[?25l")
 		t.Send(FgBrightCyan + "Press any key to continue..." + Reset)
 	} else {
 		t.Send("Press any key to continue...")
 	}
 	_, err := t.GetKey()
+	// Show the cursor after the keypress
+	if t.ANSIEnabled {
+		t.Send("\033[?25h")
+	}
 	t.Send("\r\n")
 	return err
 }
