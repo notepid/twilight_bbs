@@ -1,6 +1,7 @@
 package door
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -31,8 +32,20 @@ func NewLauncher(dosemuPath, driveCPath, tempDir string) *Launcher {
 // Launch starts a DOS door, bridging I/O between the user's terminal and
 // the dosemu2 process. This blocks until the door exits.
 func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+	resolvePath := func(p string) string {
+		if filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(wd, p)
+	}
+
 	// Create a temporary directory for this door session
-	sessionDir := filepath.Join(l.TempDir, fmt.Sprintf("node%d", session.NodeID))
+	tempDir := resolvePath(l.TempDir)
+	sessionDir := filepath.Join(tempDir, fmt.Sprintf("node%d", session.NodeID))
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		return fmt.Errorf("create session dir: %w", err)
 	}
@@ -55,10 +68,43 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 	// Build dosemu2 command
 	// dosemu2 can be run in dumb terminal mode with -t
 	// The door executable runs inside the DOS environment
+	driveC := resolvePath(l.DriveCPath)
+	if _, err := os.Stat(filepath.Join(driveC, "drive_c")); err == nil {
+		// If the provided path is an "image dir" containing drive_c/, prefer that.
+		driveC = filepath.Join(driveC, "drive_c")
+	}
+
+	// Use a per-session DOSEMU local dir so we don't depend on ~$USER/.dosemu
+	// existing inside containers or restricted environments.
+	dosemuLocalDir := filepath.Join(sessionDir, ".dosemu")
+	if err := os.MkdirAll(dosemuLocalDir, 0755); err != nil {
+		return fmt.Errorf("create dosemu local dir: %w", err)
+	}
+
+	// Keep DOSEMU quieter in container/stdio mode.
+	// - Force CPU virtualization to emulated (avoids /dev/kvm noise in containers)
+	// - Set keyboard layout explicitly (avoids console/X probing noise)
+	// - Disable speaker/sound (avoids libao/ladspa noise)
+	//
+	// dosemu2 expects this file at <local_dir>/dosemurc by default.
+	dosemurcPath := filepath.Join(dosemuLocalDir, "dosemurc")
+	dosemurc := strings.Join([]string{
+		`$_cpu_vm = "emulated"`,
+		`$_cpu_vm_dpmi = "emulated"`,
+		`$_layout = "us"`,
+		`$_speaker = "off"`,
+		`$_sound = (off)`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(dosemurcPath, []byte(dosemurc), 0644); err != nil {
+		return fmt.Errorf("write dosemu rc: %w", err)
+	}
+
 	cmd := exec.Command(l.DosemuPath,
 		"-t",                         // dumb terminal mode
 		"-E", session.DoorConfig.Command, // execute command
-		"--Fimagedir", l.DriveCPath,  // set drive C
+		"--Flocal_dir", dosemuLocalDir,
+		"--Fdrive_c", driveC, // set drive C path
 	)
 
 	cmd.Dir = sessionDir
@@ -78,6 +124,11 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 		return fmt.Errorf("stdout pipe: %w", err)
 	}
 
+	cmdStderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("stderr pipe: %w", err)
+	}
+
 	// Start the process
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start dosemu: %w", err)
@@ -85,7 +136,7 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 
 	// Bridge I/O with goroutines
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	stdinDone := make(chan struct{})
 
@@ -100,6 +151,48 @@ func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) e
 	go func() {
 		defer wg.Done()
 		io.Copy(stdout, cmdStdout)
+	}()
+
+	// Door -> User (stderr)
+	go func() {
+		defer wg.Done()
+		ignoreLine := func(line string) bool {
+			switch {
+			case strings.HasPrefix(line, "ERROR: KVM: error opening /dev/kvm:"):
+				return true
+			case strings.HasPrefix(line, "ERROR: Unable to open console or check with X to evaluate the keyboard map."):
+				return true
+			case strings.HasPrefix(line, "Please specify your keyboard map explicitly via the $_layout option."):
+				return true
+			case strings.HasPrefix(line, "ERROR: ladspa:"):
+				return true
+			case strings.HasPrefix(line, "ERROR: libao:"):
+				return true
+			case line == "Your kernel is too old, not using Landlock":
+				return true
+			case line == "ERROR: landlock_init() failed":
+				return true
+			case line == "ERROR: kbd: EOF from stdin":
+				return true
+			default:
+				return false
+			}
+		}
+
+		sc := bufio.NewScanner(cmdStderr)
+		// Allow longer lines without truncation.
+		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for sc.Scan() {
+			line := sc.Text()
+			if ignoreLine(line) {
+				continue
+			}
+			// stderr output is mostly diagnostics; preserve line boundaries.
+			io.WriteString(stdout, line+"\r\n")
+		}
+		if err := sc.Err(); err != nil {
+			log.Printf("Door: stderr read error (node %d): %v", session.NodeID, err)
+		}
 	}()
 
 	// Wait for the process to exit

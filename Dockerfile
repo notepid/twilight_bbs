@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-bookworm AS builder
+FROM golang:1.24-trixie AS builder
 
 WORKDIR /app
 
@@ -14,12 +14,23 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bbs ./cmd/bbs/
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
-# Install dosemu2 for DOS door support (optional)
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dosemu2 (from official PPA) and runtime deps
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates \
+    ca-certificates \
+    gnupg \
+    netcat-openbsd \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository -y ppa:dosemu2/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    dosemu2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create BBS user
@@ -32,8 +43,24 @@ COPY --from=builder /bbs /usr/local/bin/bbs
 COPY assets/ /opt/bbs/assets/
 COPY config.yaml /opt/bbs/config.yaml
 
+# Add a simple example DOS door for smoke testing.
+# This lives under the configured `doors.drive_c` path (./doors/drive_c).
+RUN mkdir -p /opt/bbs/doors/drive_c/drive_c/HELLO && \
+    printf '%s\r\n' \
+    '@echo off' \
+    'cls' \
+    'echo.' \
+    'echo Twilight BBS DOSEMU2 test door' \
+    'echo If you can see this, DOSEMU2 launched successfully.' \
+    'echo A dropfile should have been created in the working directory (e.g. DOOR.SYS).' \
+    'echo ran > C:\\HELLO\\RAN.TXT' \
+    'echo.' \
+    'echo Returning to the BBS...' \
+    'exit' \
+    > /opt/bbs/doors/drive_c/drive_c/HELLO/HELLO.BAT
+
 # Create data directories
-RUN mkdir -p /opt/bbs/data /opt/bbs/assets/menus /opt/bbs/assets/text && \
+RUN mkdir -p /opt/bbs/data /opt/bbs/assets/menus /opt/bbs/assets/text /opt/bbs/doors/drive_c && \
     chown -R bbs:bbs /opt/bbs
 
 # Expose ports

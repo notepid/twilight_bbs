@@ -2,7 +2,7 @@
 local menu = {}
 
 function menu.on_load(node)
-    node:cls()
+    --node:cls()
 end
 
 function menu.on_enter(node)
