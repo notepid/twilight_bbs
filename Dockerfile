@@ -48,6 +48,7 @@ COPY config.yaml /opt/bbs/config.yaml
 # Expected layout: doors/drive_c/<DOORNAME>/...
 COPY doors/drive_c/ /opt/bbs/doors/drive_c/
 
+
 # Normalize DOS text files to CRLF so batch files work reliably regardless of
 # the build host OS / git newline settings. Do not touch binaries.
 RUN find /opt/bbs/doors/drive_c -type f \( -iname '*.bat' -o -iname '*.cmd' -o -iname '*.txt' \) -print0 | \
