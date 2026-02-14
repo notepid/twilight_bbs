@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/notepid/twilight_bbs/internal/ansi"
 	"github.com/notepid/twilight_bbs/internal/config"
@@ -137,10 +139,31 @@ func main() {
 		}
 	}()
 
+	// --- Health server ---
+	healthMux := http.NewServeMux()
+	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	healthServer := &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.Server.HealthPort),
+		Handler:           healthMux,
+		ReadHeaderTimeout: 2 * time.Second,
+	}
+
+	go func() {
+		if err := healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Health server error: %v", err)
+		}
+	}()
+
 	// --- Graceful shutdown ---
 	fmt.Printf("\n%s is running\n", cfg.BBS.Name)
 	fmt.Printf("  Telnet: port %d\n", cfg.Server.TelnetPort)
 	fmt.Printf("  SSH:    port %d\n", cfg.Server.SSHPort)
+	fmt.Printf("  Health: port %d\n", cfg.Server.HealthPort)
 	fmt.Printf("  Nodes:  0/%d\n", cfg.BBS.MaxNodes)
 	fmt.Println("\nPress Ctrl+C to shut down.")
 

@@ -26,6 +26,7 @@ type BBSConfig struct {
 type ServerConfig struct {
 	TelnetPort int `yaml:"telnet_port"`
 	SSHPort    int `yaml:"ssh_port"`
+	HealthPort int `yaml:"health_port"`
 }
 
 // PathsConfig holds filesystem paths for assets and data.
@@ -59,6 +60,7 @@ func Load(path string) (*Config, error) {
 		Server: ServerConfig{
 			TelnetPort: 2323,
 			SSHPort:    2222,
+			HealthPort: 2223,
 		},
 		Paths: PathsConfig{
 			Menus:    "./assets/menus",
