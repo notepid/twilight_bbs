@@ -555,12 +555,23 @@ func (e *Engine) handleEnterChat() error {
 		userName = e.currentUser.Username
 	}
 	room := "main"
+
+	// Optional chat UI template (ASCII/ANSI art with placeholders).
+	// If missing, the chat session will fall back to its classic output.
+	var tmpl *ansi.DisplayFile
+	if e.loader != nil {
+		if df, err := e.loader.Find("chat_room", e.term.ANSIEnabled); err == nil {
+			tmpl = df
+		}
+	}
+
 	if err := chat.RunRoomSession(chat.RoomSessionConfig{
 		Term:     e.term,
 		Broker:   e.services.ChatBroker,
 		NodeID:   e.services.NodeID,
 		UserName: userName,
 		Room:     room,
+		Template: tmpl,
 	}); err != nil {
 		return err
 	}
