@@ -20,10 +20,12 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
 
-	// Enable WAL mode for better concurrent read performance
+	// Enable WAL mode for better concurrent read performance.
+	// NOTE: On some filesystems (notably Windows bind mounts under Docker Desktop),
+	// changing journal modes can fail with "disk I/O error". In that case, we log
+	// and continue with SQLite's default journaling rather than refusing to start.
 	if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		sqlDB.Close()
-		return nil, fmt.Errorf("set WAL mode: %w", err)
+		log.Printf("Warning: failed to enable WAL mode (%v); continuing without WAL", err)
 	}
 
 	// Enable foreign keys

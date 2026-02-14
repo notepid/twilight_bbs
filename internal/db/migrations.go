@@ -118,4 +118,39 @@ var migrations = []migration{
 				(3, 'Tech Talk', 'Technology discussion', 3)
 		`,
 	},
+	{
+		name: "seed hello test door",
+		sql: `
+			INSERT INTO doors (name, description, command, drop_file_type, security_level)
+			SELECT 'HELLO', 'Example test door (DOSEMU2 smoke test)', 'C:\\HELLO\\HELLO.BAT', 'DOOR.SYS', 10
+			WHERE NOT EXISTS (SELECT 1 FROM doors WHERE name = 'HELLO');
+		`,
+	},
+	{
+		name: "ensure hello test door command",
+		sql: `
+			UPDATE doors
+			SET command = 'C:\\HELLO\\HELLO.BAT'
+			WHERE name = 'HELLO';
+		`,
+	},
+	{
+		name: "compat: ensure hello door command",
+		sql: `
+			UPDATE doors
+			SET command = 'C:\\HELLO\\HELLO.BAT'
+			WHERE name = 'HELLO';
+		`,
+	},
+	{
+		name: "compat: ensure hello door exists",
+		sql: `
+			INSERT INTO doors (name, description, command, drop_file_type, security_level)
+			SELECT 'HELLO', 'Example test door (DOSEMU2 smoke test)', 'C:\\HELLO\\HELLO.BAT', 'DOOR.SYS', 10
+			WHERE NOT EXISTS (SELECT 1 FROM doors WHERE name = 'HELLO');
+			UPDATE doors
+			SET command = 'C:\\HELLO\\HELLO.BAT'
+			WHERE name = 'HELLO';
+		`,
+	},
 }
