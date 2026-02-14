@@ -12,6 +12,7 @@ type Field struct {
 	Row    int
 	Col    int
 	MaxLen int
+	Height int
 }
 
 // BlankPlaceholders returns a copy of data where any placeholder sequences
@@ -134,7 +135,7 @@ func IndexFields(df *DisplayFile, termWidth int) map[string]Field {
 			end := findPlaceholderEnd(df.Data, i+2)
 			if end != -1 {
 				payload := string(df.Data[i+2 : end])
-				id, maxLen := parseFieldPayload(payload)
+				id, maxLen, height := parseFieldPayload(payload)
 				if id != "" {
 					if _, exists := fields[id]; !exists {
 						fields[id] = Field{
@@ -142,6 +143,7 @@ func IndexFields(df *DisplayFile, termWidth int) map[string]Field {
 							Row:    row,
 							Col:    col,
 							MaxLen: maxLen,
+							Height: height,
 						}
 					}
 				}
@@ -178,23 +180,34 @@ func findPlaceholderEnd(data []byte, start int) int {
 	return -1
 }
 
-func parseFieldPayload(payload string) (id string, maxLen int) {
+func parseFieldPayload(payload string) (id string, maxLen int, height int) {
 	payload = strings.TrimSpace(payload)
 	if payload == "" {
-		return "", 0
+		return "", 0, 0
 	}
-	parts := strings.SplitN(payload, ",", 2)
+	parts := strings.Split(payload, ",")
 	id = strings.TrimSpace(parts[0])
 	if id == "" {
-		return "", 0
+		return "", 0, 0
 	}
-	if len(parts) == 2 {
+
+	// {{ID,width}} or {{ID,width,height}}
+	if len(parts) >= 2 {
 		nStr := strings.TrimSpace(parts[1])
 		if n, err := strconv.Atoi(nStr); err == nil && n > 0 {
 			maxLen = n
+			// Back-compat rule: if width is specified but height is not, height defaults to 1.
+			height = 1
 		}
 	}
-	return id, maxLen
+	if len(parts) >= 3 {
+		hStr := strings.TrimSpace(parts[2])
+		if h, err := strconv.Atoi(hStr); err == nil && h > 0 {
+			height = h
+		}
+	}
+
+	return id, maxLen, height
 }
 
 func applyCSI(row, col *int, width int, params string, final byte) {

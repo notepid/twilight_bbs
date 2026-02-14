@@ -1,6 +1,7 @@
 package scripting
 
 import (
+	"log"
 	"strings"
 
 	"github.com/notepid/twilight_bbs/internal/ansi"
@@ -11,6 +12,10 @@ import (
 // NodeAPI exposes BBS node I/O and navigation functions to Lua.
 type NodeAPI struct {
 	term *terminal.Terminal
+
+	// sessionState holds per-connection/session state that should be shared
+	// across menus (unlike menu-local state stored via set_state/get_state).
+	sessionState map[string]interface{}
 
 	// Navigation callbacks - set by the menu engine
 	OnGotoMenu   func(name string) error
@@ -35,7 +40,10 @@ type NodeAPI struct {
 
 // NewNodeAPI creates a Lua API instance bound to a terminal.
 func NewNodeAPI(term *terminal.Terminal) *NodeAPI {
-	return &NodeAPI{term: term}
+	return &NodeAPI{
+		term:         term,
+		sessionState: make(map[string]interface{}),
+	}
 }
 
 // Register installs the node userdata type and creates a node instance
@@ -67,6 +75,8 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaSend))
 	case "sendln":
 		L.Push(L.NewFunction(api.luaSendLn))
+	case "log":
+		L.Push(L.NewFunction(api.luaLog))
 	case "cls":
 		L.Push(L.NewFunction(api.luaCls))
 	case "display":
@@ -111,6 +121,8 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaInputField))
 	case "password_field":
 		L.Push(L.NewFunction(api.luaPasswordField))
+	case "output_field":
+		L.Push(L.NewFunction(api.luaOutputField))
 
 	// Methods - Navigation
 	case "goto_menu":
@@ -127,6 +139,10 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaSetState))
 	case "get_state":
 		L.Push(L.NewFunction(api.luaGetState))
+	case "set_session":
+		L.Push(L.NewFunction(api.luaSetSession))
+	case "get_session":
+		L.Push(L.NewFunction(api.luaGetSession))
 
 	// Methods - Inter-node (Phase 7+)
 	case "show_online":
@@ -162,6 +178,13 @@ func (api *NodeAPI) luaSend(L *lua.LState) int {
 func (api *NodeAPI) luaSendLn(L *lua.LState) int {
 	text := L.CheckString(2)
 	api.term.SendLn(text)
+	return 0
+}
+
+func (api *NodeAPI) luaLog(L *lua.LState) int {
+	// node:log(text)
+	text := L.OptString(2, "")
+	log.Printf("[lua] %s", text)
 	return 0
 }
 
@@ -422,6 +445,74 @@ func (api *NodeAPI) luaPasswordField(L *lua.LState) int {
 	return 1
 }
 
+func (api *NodeAPI) luaOutputField(L *lua.LState) int {
+	// node:output_field(id, text [, widthOverride [, heightOverride]])
+	id := strings.TrimSpace(L.CheckString(2))
+	text := L.OptString(3, "")
+	if id == "" || api.OnGetField == nil {
+		return 0
+	}
+
+	f, ok := api.OnGetField(id)
+	if !ok {
+		return 0
+	}
+
+	widthOverride := L.OptInt(4, 0)
+	heightOverride := L.OptInt(5, 0)
+
+	width := widthOverride
+	if width <= 0 {
+		width = f.MaxLen
+	}
+	if width <= 0 {
+		width = 80
+	}
+
+	height := heightOverride
+	if height <= 0 {
+		height = f.Height
+	}
+	if height <= 0 {
+		height = 1
+	}
+
+	// If ANSI cursor positioning isn't available, fall back to sequential printing.
+	// This keeps menus usable for ASCII-only sessions.
+	if !api.term.ANSIEnabled {
+		lines := strings.Split(text, "\n")
+		for i := 0; i < height && i < len(lines); i++ {
+			line := strings.TrimRight(lines[i], "\r")
+			r := []rune(line)
+			if len(r) > width {
+				line = string(r[:width])
+			}
+			api.term.SendLn(line)
+		}
+		return 0
+	}
+
+	// Clear rectangle first.
+	for row := 0; row < height; row++ {
+		api.term.GotoXY(f.Row+row, f.Col)
+		api.term.Send(strings.Repeat(" ", width))
+	}
+
+	// Print text into the rectangle: no wrapping, truncate each line, clip by height.
+	lines := strings.Split(text, "\n")
+	for i := 0; i < height && i < len(lines); i++ {
+		line := strings.TrimRight(lines[i], "\r")
+		r := []rune(line)
+		if len(r) > width {
+			line = string(r[:width])
+		}
+		api.term.GotoXY(f.Row+i, f.Col)
+		api.term.Send(line)
+	}
+
+	return 0
+}
+
 // --- Navigation Methods ---
 
 func (api *NodeAPI) luaGotoMenu(L *lua.LState) int {
@@ -507,6 +598,61 @@ func (api *NodeAPI) luaGetState(L *lua.LState) int {
 	}
 
 	// Convert Go interface{} to Lua value
+	switch v := val.(type) {
+	case nil:
+		L.Push(lua.LNil)
+	case bool:
+		L.Push(lua.LBool(v))
+	case float64:
+		L.Push(lua.LNumber(v))
+	case string:
+		L.Push(lua.LString(v))
+	case int:
+		L.Push(lua.LNumber(lua.LNumber(v)))
+	default:
+		L.Push(lua.LNil)
+	}
+
+	return 1
+}
+
+func (api *NodeAPI) luaSetSession(L *lua.LState) int {
+	key := L.CheckString(2)
+	value := L.CheckAny(3)
+
+	// Convert Lua value to Go interface{}
+	var val interface{}
+	switch v := value.(type) {
+	case lua.LBool:
+		val = bool(v)
+	case lua.LNumber:
+		val = float64(v)
+	case lua.LString:
+		val = string(v)
+	default:
+		if value == lua.LNil {
+			val = nil
+		} else {
+			val = nil
+		}
+	}
+
+	if val == nil {
+		delete(api.sessionState, key)
+		return 0
+	}
+	api.sessionState[key] = val
+	return 0
+}
+
+func (api *NodeAPI) luaGetSession(L *lua.LState) int {
+	key := L.CheckString(2)
+	val, ok := api.sessionState[key]
+	if !ok {
+		L.Push(lua.LNil)
+		return 1
+	}
+
 	switch v := val.(type) {
 	case nil:
 		L.Push(lua.LNil)
