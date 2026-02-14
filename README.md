@@ -112,6 +112,7 @@ bbs:
 server:
   telnet_port: 2323
   ssh_port: 2222
+  health_port: 2223
 
 paths:
   menus: "./assets/menus"

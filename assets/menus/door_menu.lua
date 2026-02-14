@@ -71,7 +71,7 @@ function menu.on_key(node, key)
         node:sendln("\r\n  Error: " .. err)
         --node:pause()
     end
-    node:pause()
+    --node:pause()
     node:goto_menu("door_menu")
 end
 

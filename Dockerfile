@@ -67,7 +67,7 @@ WORKDIR /opt/bbs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD timeout 2 bash -c 'echo | nc -w 1 localhost 2323' || exit 1
+    CMD timeout 2 bash -c 'printf "GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" | nc -w 1 localhost 2223 | grep -q "200 OK"' || exit 1
 
 ENTRYPOINT ["bbs"]
 CMD ["-config", "/opt/bbs/config.yaml"]
