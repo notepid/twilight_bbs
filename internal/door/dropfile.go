@@ -38,7 +38,7 @@ func WriteDoorSys(dir string, s *Session) (string, error) {
 		fmt.Sprintf("%d", s.TimeLeftMins*60),       // 18: seconds remaining
 		fmt.Sprintf("%d", s.TimeLeftMins),          // 19: minutes remaining
 		"GR",                                        // 20: graphics mode (GR=ANSI)
-		"24",                                        // 21: screen height
+		"25",                                        // 21: screen height
 		"Y",                                         // 22: expert mode
 		"",                                          // 23: conferences registered
 		"",                                          // 24: current conference

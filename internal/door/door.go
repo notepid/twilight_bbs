@@ -18,9 +18,11 @@ type Session struct {
 	User          *user.User
 	NodeID        int
 	TimeLeftMins  int
-	ComPort       int // emulated COM port (usually 0 for local)
+	ComPort       int // emulated COM port (1 for DOSEMU doors, 0 for local)
 	BaudRate      int
 	DropFilePath  string
 	DosemuPath    string
 	DriveCPath    string
+	TermWidth     int // terminal width (columns), 0 defaults to 80
+	TermHeight    int // terminal height (rows), 0 defaults to 25
 }
