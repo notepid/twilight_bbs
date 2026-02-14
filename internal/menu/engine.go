@@ -146,6 +146,8 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	if svc != nil && svc.DoorLauncher != nil {
 		e.doorAPI = scripting.NewDoorAPI(svc.DoorLauncher, func() *user.User {
 			return e.currentUser
+		}, func() (int, int) {
+			return term.Width, term.Height
 		}, svc.NodeID, term, term)
 		e.doorAPI.Register(vm.L)
 

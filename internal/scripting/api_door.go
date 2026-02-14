@@ -15,16 +15,18 @@ import (
 type DoorAPI struct {
 	launcher    *door.Launcher
 	currentUser func() *user.User
+	termSize    func() (width, height int)
 	nodeID      int
 	stdin       io.Reader
 	stdout      io.Writer
 }
 
 // NewDoorAPI creates a Lua door API.
-func NewDoorAPI(launcher *door.Launcher, currentUser func() *user.User, nodeID int, stdin io.Reader, stdout io.Writer) *DoorAPI {
+func NewDoorAPI(launcher *door.Launcher, currentUser func() *user.User, termSize func() (int, int), nodeID int, stdin io.Reader, stdout io.Writer) *DoorAPI {
 	return &DoorAPI{
 		launcher:    launcher,
 		currentUser: currentUser,
+		termSize:    termSize,
 		nodeID:      nodeID,
 		stdin:       stdin,
 		stdout:      stdout,
@@ -66,15 +68,18 @@ func (api *DoorAPI) luaLaunch(L *lua.LState) int {
 		return 1
 	}
 
+	termW, termH := api.termSize()
 	session := &door.Session{
 		DoorConfig:   &cfg,
 		User:         u,
 		NodeID:       api.nodeID,
 		TimeLeftMins: 60,
-		ComPort:      0,
+		ComPort:      1,
 		BaudRate:     115200,
 		DosemuPath:   api.launcher.DosemuPath,
 		DriveCPath:   api.launcher.DriveCPath,
+		TermWidth:    termW,
+		TermHeight:   termH,
 	}
 
 	log.Printf("Node %d launching door: %s", api.nodeID, cfg.Name)
