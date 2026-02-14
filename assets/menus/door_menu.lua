@@ -24,7 +24,7 @@ local doors = {
     ["D"] = {
         name = "Darkness",
         description = "Darkness v2.0 - Post-apocalyptic cyberpunk adventure",
-        command = "C:\\DARKNESS\\DARK16.EXE /N{NODE} /D3 /PC:\\BBS\\DROP\\NODE{NODE}",
+        command = "C:\\DOORS\\DARKNESS\\DARK16.EXE /N{NODE} /D3 /PC:\\NODES\\TEMP{NODE}",
         drop_file_type = "DOOR.SYS",
         security_level = 10,
     },

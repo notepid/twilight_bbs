@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Launcher manages launching DOS doors via dosemu2.
@@ -11,6 +12,7 @@ type Launcher struct {
 	DosemuPath string
 	DriveCPath string
 	TempDir    string
+	Timeout    time.Duration // max door runtime; 0 defaults to 60 minutes
 }
 
 // NewLauncher creates a new door launcher.
@@ -42,9 +44,12 @@ func validateDoorCommand(cmd string) error {
 	if strings.ContainsAny(cmd, "&|;><`$") {
 		return fmt.Errorf("contains shell metacharacters")
 	}
-	for _, r := range cmd {
+	// Strip placeholders before checking for non-printable chars,
+	// since {NODE} and {DROP} use braces which are valid.
+	stripped := strings.NewReplacer("{NODE}", "", "{DROP}", "").Replace(cmd)
+	for _, r := range stripped {
 		if r < 32 || r > 126 {
-			return fmt.Errorf("contains non-ASCII characters")
+			return fmt.Errorf("contains non-printable characters")
 		}
 	}
 	return nil
