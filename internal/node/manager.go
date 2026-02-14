@@ -10,7 +10,6 @@ type Manager struct {
 	mu       sync.RWMutex
 	nodes    map[int]*Node
 	maxNodes int
-	nextID   int
 	BBSName  string
 	SysopName string
 }
@@ -20,7 +19,6 @@ func NewManager(maxNodes int, bbsName, sysopName string) *Manager {
 	return &Manager{
 		nodes:     make(map[int]*Node),
 		maxNodes:  maxNodes,
-		nextID:    1,
 		BBSName:   bbsName,
 		SysopName: sysopName,
 	}
@@ -36,9 +34,13 @@ func (m *Manager) Acquire() (int, bool) {
 		return 0, false
 	}
 
-	id := m.nextID
-	m.nextID++
-	return id, true
+	for id := 1; id <= m.maxNodes; id++ {
+		if _, exists := m.nodes[id]; !exists {
+			return id, true
+		}
+	}
+
+	return 0, false
 }
 
 // Add registers a node with the manager.
