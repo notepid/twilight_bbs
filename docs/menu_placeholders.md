@@ -14,12 +14,16 @@ This document explains how to use `{{...}}` placeholders inside menu art files (
 
 - **Unbounded (uses default length)**:
   - `{{USER}}`
-- **With max length**:
+- **With max length (width)**:
   - `{{USER,30}}`
+- **With width and height (output regions)**:
+  - `{{AREA_LIST,78,18}}`
 
 Rules:
 - `ID` is case-sensitive (e.g. `USER` and `User` are different).
 - `maxLen` must be a positive integer to be recognized.
+- `height` (when present) must be a positive integer to be recognized.
+- Backward compatible rule: `{{ID,width}}` implies `height = 1`.
 - The placeholder’s **top-left** position (the first `{`) is used as the field coordinate.
 
 ### Value placeholders (auto-filled)
@@ -119,6 +123,30 @@ end
 Low-level helper that moves the cursor and reads input, but **does not** clear the placeholder area first.
 
 Use this if you want custom clearing/redraw behavior.
+
+## Lua API: output helpers
+
+### `node:output_field(id, text [, widthOverride [, heightOverride]])`
+
+Print text into a placeholder region (useful for rendering lists and message bodies into an `.asc` template).
+
+- Moves to the placeholder position.
+- Clears the entire output rectangle with spaces (width = override or placeholder width; height = override or placeholder height).
+- Splits `text` by newlines and prints it into the rectangle.
+- **Overflow behavior**:
+  - No wrapping.
+  - Each line is truncated to `width`.
+  - Extra lines beyond `height` are clipped.
+
+Example:
+
+```lua
+local rows = {
+  "1   General                        120   3",
+  "2   Announcements                   42   0",
+}
+node:output_field("AREA_LIST", table.concat(rows, "\n"))
+```
 
 ## Lua API: cursor helpers
 

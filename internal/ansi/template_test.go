@@ -13,8 +13,8 @@ func TestIndexFields_ASCII(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected field TE1 to be found")
 	}
-	if f.Row != 1 || f.Col != 7 || f.MaxLen != 8 {
-		t.Fatalf("unexpected field: %+v (want Row=1 Col=7 MaxLen=8)", f)
+	if f.Row != 1 || f.Col != 7 || f.MaxLen != 8 || f.Height != 1 {
+		t.Fatalf("unexpected field: %+v (want Row=1 Col=7 MaxLen=8 Height=1)", f)
 	}
 }
 
@@ -29,8 +29,24 @@ func TestIndexFields_ANSI_CursorPosition(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected field TE1 to be found")
 	}
-	if f.Row != 10 || f.Col != 20 || f.MaxLen != 8 {
-		t.Fatalf("unexpected field: %+v (want Row=10 Col=20 MaxLen=8)", f)
+	if f.Row != 10 || f.Col != 20 || f.MaxLen != 8 || f.Height != 1 {
+		t.Fatalf("unexpected field: %+v (want Row=10 Col=20 MaxLen=8 Height=1)", f)
+	}
+}
+
+func TestIndexFields_Height(t *testing.T) {
+	df := &DisplayFile{
+		IsANSI: false,
+		Data:   []byte("{{BOX,10,5}}"),
+	}
+
+	fields := IndexFields(df, 80)
+	f, ok := fields["BOX"]
+	if !ok {
+		t.Fatalf("expected field BOX to be found")
+	}
+	if f.Row != 1 || f.Col != 1 || f.MaxLen != 10 || f.Height != 5 {
+		t.Fatalf("unexpected field: %+v (want Row=1 Col=1 MaxLen=10 Height=5)", f)
 	}
 }
 
