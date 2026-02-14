@@ -1,0 +1,18 @@
+# Door files (DOSEMU drive C)
+# Ensure DOS text files are CRLF in the working tree across platforms.
+doors/**/*.BAT text eol=crlf
+doors/**/*.bat text eol=crlf
+doors/**/*.CMD text eol=crlf
+doors/**/*.cmd text eol=crlf
+doors/**/*.TXT text eol=crlf
+doors/**/*.txt text eol=crlf
+
+# Never newline-convert binaries in door packages.
+doors/**/*.[Ee][Xx][Ee] binary
+doors/**/*.[Cc][Oo][Mm] binary
+doors/**/*.[Zz][Ii][Pp] binary
+doors/**/*.[Rr][Aa][Rr] binary
+doors/**/*.[7][Zz] binary
+doors/**/*.[Aa][Rr][Jj] binary
+doors/**/*.[Ll][Zz][Hh] binary
+doors/**/*.[Ll][Hh][Aa] binary

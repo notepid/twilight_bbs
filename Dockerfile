@@ -24,6 +24,7 @@ RUN apt-get update && \
     ca-certificates \
     gnupg \
     netcat-openbsd \
+    perl \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,21 +44,14 @@ COPY --from=builder /bbs /usr/local/bin/bbs
 COPY assets/ /opt/bbs/assets/
 COPY config.yaml /opt/bbs/config.yaml
 
-# Add a simple example DOS door for smoke testing.
-# This lives under the configured `doors.drive_c` path (./doors/drive_c).
-RUN mkdir -p /opt/bbs/doors/drive_c/drive_c/HELLO && \
-    printf '%s\r\n' \
-    '@echo off' \
-    'cls' \
-    'echo.' \
-    'echo Twilight BBS DOSEMU2 test door' \
-    'echo If you can see this, DOSEMU2 launched successfully.' \
-    'echo A dropfile should have been created in the working directory (e.g. DOOR.SYS).' \
-    'echo ran > C:\\HELLO\\RAN.TXT' \
-    'echo.' \
-    'echo Returning to the BBS...' \
-    'exit' \
-    > /opt/bbs/doors/drive_c/drive_c/HELLO/HELLO.BAT
+# Copy doors (DOSEMU drive C tree) from the repo.
+# Expected layout: doors/drive_c/<DOORNAME>/...
+COPY doors/drive_c/ /opt/bbs/doors/drive_c/
+
+# Normalize DOS text files to CRLF so batch files work reliably regardless of
+# the build host OS / git newline settings. Do not touch binaries.
+RUN find /opt/bbs/doors/drive_c -type f \( -iname '*.bat' -o -iname '*.cmd' -o -iname '*.txt' \) -print0 | \
+    xargs -0 -r perl -pi -e 's/\r?\n/\r\n/g'
 
 # Create data directories
 RUN mkdir -p /opt/bbs/data /opt/bbs/assets/menus /opt/bbs/assets/text /opt/bbs/doors/drive_c && \

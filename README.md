@@ -88,9 +88,16 @@ return menu
 
 **Files:** `files.areas()`, `files.list()`, `files.search()`, `files.get_file()`
 
-**Doors:** `door.list()`, `door.launch()`, `door.available()`
+**Doors:** `door.launch(cfg)`, `door.available()`
 
 **Chat:** `chat.send()`, `chat.broadcast()`, `chat.online()`, `chat.enter_room()`, `chat.send_room()`
+
+### Configuring doors
+
+Doors are configured in the door menu Lua script: `assets/menus/door_menu.lua`.
+
+- Edit `assets/menus/door_menu.ans` / `assets/menus/door_menu.asc` for the on-screen text.
+- Edit the `doors` table in `assets/menus/door_menu.lua` to map single-key hotkeys to door configs.
 
 ## Configuration
 

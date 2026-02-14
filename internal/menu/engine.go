@@ -143,8 +143,8 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	}
 
 	// Register door API if launcher is available
-	if svc != nil && svc.DoorLauncher != nil && svc.DB != nil {
-		e.doorAPI = scripting.NewDoorAPI(svc.DB, svc.DoorLauncher, func() *user.User {
+	if svc != nil && svc.DoorLauncher != nil {
+		e.doorAPI = scripting.NewDoorAPI(svc.DoorLauncher, func() *user.User {
 			return e.currentUser
 		}, svc.NodeID, term, term)
 		e.doorAPI.Register(vm.L)
