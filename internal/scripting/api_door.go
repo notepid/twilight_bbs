@@ -1,10 +1,10 @@
 package scripting
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	"github.com/notepid/twilight_bbs/internal/door"
 	"github.com/notepid/twilight_bbs/internal/user"
@@ -13,7 +13,6 @@ import (
 
 // DoorAPI exposes door launching functions to Lua.
 type DoorAPI struct {
-	db          *sql.DB
 	launcher    *door.Launcher
 	currentUser func() *user.User
 	nodeID      int
@@ -22,10 +21,8 @@ type DoorAPI struct {
 }
 
 // NewDoorAPI creates a Lua door API.
-func NewDoorAPI(db *sql.DB, launcher *door.Launcher, currentUser func() *user.User,
-	nodeID int, stdin io.Reader, stdout io.Writer) *DoorAPI {
+func NewDoorAPI(launcher *door.Launcher, currentUser func() *user.User, nodeID int, stdin io.Reader, stdout io.Writer) *DoorAPI {
 	return &DoorAPI{
-		db:          db,
 		launcher:    launcher,
 		currentUser: currentUser,
 		nodeID:      nodeID,
@@ -38,78 +35,34 @@ func NewDoorAPI(db *sql.DB, launcher *door.Launcher, currentUser func() *user.Us
 func (api *DoorAPI) Register(L *lua.LState) {
 	mod := L.NewTable()
 
-	mod.RawSetString("list", L.NewFunction(api.luaList))
 	mod.RawSetString("launch", L.NewFunction(api.luaLaunch))
 	mod.RawSetString("available", L.NewFunction(api.luaAvailable))
 
 	L.SetGlobal("door", mod)
 }
 
-func (api *DoorAPI) luaList(L *lua.LState) int {
-	u := api.currentUser()
-	level := 0
-	if u != nil {
-		level = u.SecurityLevel
-	}
-
-	rows, err := api.db.Query(`
-		SELECT id, name, description, security_level
-		FROM doors WHERE security_level <= ?
-		ORDER BY name
-	`, level)
-	if err != nil {
-		L.Push(lua.LNil)
-		return 1
-	}
-	defer rows.Close()
-
-	tbl := L.NewTable()
-	i := 1
-	for rows.Next() {
-		var id, secLevel int
-		var name, desc string
-		if err := rows.Scan(&id, &name, &desc, &secLevel); err != nil {
-			continue
-		}
-		dt := L.NewTable()
-		dt.RawSetString("id", lua.LNumber(id))
-		dt.RawSetString("name", lua.LString(name))
-		dt.RawSetString("description", lua.LString(desc))
-		tbl.RawSetInt(i, dt)
-		i++
-	}
-	L.Push(tbl)
-	return 1
-}
-
 func (api *DoorAPI) luaLaunch(L *lua.LState) int {
-	name := L.CheckString(1)
-
 	u := api.currentUser()
 	if u == nil {
 		L.Push(lua.LString("not logged in"))
 		return 1
 	}
 
-	// Look up door config
-	var cfg door.Config
-	err := api.db.QueryRow(`
-		SELECT id, name, description, command, drop_file_type, security_level
-		FROM doors WHERE name = ?
-	`, name).Scan(&cfg.ID, &cfg.Name, &cfg.Description, &cfg.Command,
-		&cfg.DropFileType, &cfg.SecurityLevel)
+	if !api.launcher.Available() {
+		L.Push(lua.LString("dosemu2 is not installed"))
+		return 1
+	}
+
+	// door.launch(cfgTable)
+	cfgTable := L.CheckTable(1)
+	cfg, err := parseDoorConfigFromLua(cfgTable)
 	if err != nil {
-		L.Push(lua.LString(fmt.Sprintf("door '%s' not found", name)))
+		L.Push(lua.LString(err.Error()))
 		return 1
 	}
 
 	if u.SecurityLevel < cfg.SecurityLevel {
 		L.Push(lua.LString("insufficient security level"))
-		return 1
-	}
-
-	if !api.launcher.Available() {
-		L.Push(lua.LString("dosemu2 is not installed"))
 		return 1
 	}
 
@@ -124,7 +77,7 @@ func (api *DoorAPI) luaLaunch(L *lua.LState) int {
 		DriveCPath:   api.launcher.DriveCPath,
 	}
 
-	log.Printf("Node %d launching door: %s", api.nodeID, name)
+	log.Printf("Node %d launching door: %s", api.nodeID, cfg.Name)
 
 	if err := api.launcher.Launch(session, api.stdin, api.stdout); err != nil {
 		L.Push(lua.LString(fmt.Sprintf("door error: %v", err)))
@@ -138,4 +91,62 @@ func (api *DoorAPI) luaLaunch(L *lua.LState) int {
 func (api *DoorAPI) luaAvailable(L *lua.LState) int {
 	L.Push(lua.LBool(api.launcher.Available()))
 	return 1
+}
+
+func parseDoorConfigFromLua(t *lua.LTable) (door.Config, error) {
+	// Supported fields:
+	// - name (string, required)
+	// - description (string, optional)
+	// - command (string, required)
+	// - drop_file_type (string, optional; default DOOR.SYS)
+	// - security_level (number, optional; default 10)
+	getString := func(key string) string {
+		v := t.RawGetString(key)
+		if s, ok := v.(lua.LString); ok {
+			return string(s)
+		}
+		return ""
+	}
+	getNumber := func(key string) (float64, bool) {
+		v := t.RawGetString(key)
+		if n, ok := v.(lua.LNumber); ok {
+			return float64(n), true
+		}
+		return 0, false
+	}
+
+	name := strings.TrimSpace(getString("name"))
+	if name == "" {
+		return door.Config{}, fmt.Errorf("door config missing 'name'")
+	}
+
+	command := strings.TrimSpace(getString("command"))
+	if command == "" {
+		return door.Config{}, fmt.Errorf("door '%s' missing 'command'", name)
+	}
+
+	desc := strings.TrimSpace(getString("description"))
+
+	drop := strings.TrimSpace(getString("drop_file_type"))
+	if drop == "" {
+		drop = "DOOR.SYS"
+	}
+
+	secLevel := 10
+	if n, ok := getNumber("security_level"); ok {
+		if n < 0 {
+			secLevel = 0
+		} else {
+			secLevel = int(n)
+		}
+	}
+
+	return door.Config{
+		ID:            0,
+		Name:          name,
+		Description:   desc,
+		Command:       command,
+		DropFileType:  drop,
+		SecurityLevel: secLevel,
+	}, nil
 }

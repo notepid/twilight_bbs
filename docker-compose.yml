@@ -7,6 +7,7 @@ services:
     volumes:
       - ./assets:/opt/bbs/assets       # Menu files, display files (live reload)
       - ./data:/opt/bbs/data           # SQLite database, SSH host key, logs
+      - ./doors/drive_c:/opt/bbs/doors/drive_c  # DOS doors (live mount)
       - ./config.yaml:/opt/bbs/config.yaml:ro  # Configuration
     restart: unless-stopped
     environment:

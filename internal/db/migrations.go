@@ -97,60 +97,12 @@ var migrations = []migration{
 		`,
 	},
 	{
-		name: "create doors table",
-		sql: `
-			CREATE TABLE IF NOT EXISTS doors (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				name TEXT NOT NULL,
-				description TEXT DEFAULT '',
-				command TEXT NOT NULL,
-				drop_file_type TEXT DEFAULT 'DOOR.SYS',
-				security_level INTEGER DEFAULT 10
-			)
-		`,
-	},
-	{
 		name: "seed default message areas",
 		sql: `
 			INSERT OR IGNORE INTO message_areas (id, name, description, sort_order) VALUES
 				(1, 'General Discussion', 'General chat and discussion', 1),
 				(2, 'Sysop Announcements', 'News from the sysop', 2),
 				(3, 'Tech Talk', 'Technology discussion', 3)
-		`,
-	},
-	{
-		name: "seed hello test door",
-		sql: `
-			INSERT INTO doors (name, description, command, drop_file_type, security_level)
-			SELECT 'HELLO', 'Example test door (DOSEMU2 smoke test)', 'C:\\HELLO\\HELLO.BAT', 'DOOR.SYS', 10
-			WHERE NOT EXISTS (SELECT 1 FROM doors WHERE name = 'HELLO');
-		`,
-	},
-	{
-		name: "ensure hello test door command",
-		sql: `
-			UPDATE doors
-			SET command = 'C:\\HELLO\\HELLO.BAT'
-			WHERE name = 'HELLO';
-		`,
-	},
-	{
-		name: "compat: ensure hello door command",
-		sql: `
-			UPDATE doors
-			SET command = 'C:\\HELLO\\HELLO.BAT'
-			WHERE name = 'HELLO';
-		`,
-	},
-	{
-		name: "compat: ensure hello door exists",
-		sql: `
-			INSERT INTO doors (name, description, command, drop_file_type, security_level)
-			SELECT 'HELLO', 'Example test door (DOSEMU2 smoke test)', 'C:\\HELLO\\HELLO.BAT', 'DOOR.SYS', 10
-			WHERE NOT EXISTS (SELECT 1 FROM doors WHERE name = 'HELLO');
-			UPDATE doors
-			SET command = 'C:\\HELLO\\HELLO.BAT'
-			WHERE name = 'HELLO';
 		`,
 	},
 }

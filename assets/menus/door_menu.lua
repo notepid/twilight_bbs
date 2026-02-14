@@ -1,8 +1,30 @@
 -- door_menu.lua - DOS doors menu
 local menu = {}
 
+-- Sysop-configurable door hotkeys.
+-- Edit `door_menu.ans` / `door_menu.asc` to match what you list on-screen, then
+-- configure the actual door launch parameters here.
+--
+-- Required fields per door:
+-- - name (string)
+-- - command (string, DOS path inside drive C, e.g. "C:\\HELLO\\HELLO.BAT")
+-- Optional:
+-- - description (string)
+-- - drop_file_type (string; default "DOOR.SYS")
+-- - security_level (number; default 10)
+local doors = {
+    -- Example smoke-test door (matches prior DB seed)
+    ["H"] = {
+        name = "HELLO",
+        description = "Example test door (DOSEMU2 smoke test)",
+        command = "C:\\HELLO\\HELLO.BAT",
+        drop_file_type = "DOOR.SYS",
+        security_level = 10,
+    },
+}
+
 function menu.on_load(node)
-    --node:cls()
+    node:cls()
 end
 
 function menu.on_enter(node)
@@ -18,43 +40,31 @@ function menu.on_enter(node)
 end
 
 function menu.on_key(node, key)
-    if key == "L" or key == "l" then
-        list_doors(node)
-    elseif key == "Q" or key == "q" then
+    if key == "Q" or key == "q" then
         node:goto_menu("main_menu")
+        return
     end
-end
 
-function list_doors(node)
-    local doors = door.list()
-    if doors == nil or #doors == 0 then
-        node:sendln("\r\n  No doors configured.")
-        node:pause()
+    -- Normalize to uppercase so sysop can define only one key per door.
+    local k = string.upper(key or "")
+    if k == "" then
+        return
+    end
+
+    local cfg = doors[k]
+    if cfg == nil then
+        --node:sendln("\r\n  Unknown door option.")
+        --node:pause()
         node:goto_menu("door_menu")
         return
     end
 
-    node:sendln("")
-    node:sendln("  #   Name                   Description")
-    node:sendln("  --- ---------------------- ---------------------------------")
-    for i, d in ipairs(doors) do
-        local line = string.format("  %-3d %-22s %s",
-            i, d.name, d.description)
-        node:sendln(line)
-    end
-    node:sendln("")
-
-    local choice = node:ask("  Enter door name (or Q to cancel): ", 30)
-    if choice == nil or choice == "" or string.upper(choice) == "Q" then
-        node:goto_menu("door_menu")
-        return
-    end
-
-    local err = door.launch(choice)
+    local err = door.launch(cfg)
     if err then
-        node:sendln("  Error: " .. err)
-        node:pause()
+        node:sendln("\r\n  Error: " .. err)
+        --node:pause()
     end
+    node:pause()
     node:goto_menu("door_menu")
 end
 
