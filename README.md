@@ -102,7 +102,17 @@ server:
 
 paths:
   menus: "./assets/menus"
+  text: "./assets/text"
+  doors: "./assets/doors"
+  data: "./data"
   database: "./data/twilight.db"
+
+doors:
+  dosemu_path: "/usr/bin/dosemu"
+  drive_c: "./doors/drive_c"
+
+transfer:
+  sexyz_path: "/usr/local/bin/sexyz"
 ```
 
 ## Technology
