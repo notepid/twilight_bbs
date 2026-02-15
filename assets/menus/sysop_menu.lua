@@ -4,9 +4,6 @@ local menu = {}
 
 function menu.on_load(node)
     node:cls()
-end
-
-function menu.on_enter(node)
     local user = users.get_current()
     if user == nil or user.level < 100 then
         node:sendln("\r\n  Access denied. Sysop level required.")

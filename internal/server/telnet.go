@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 // Telnet protocol constants.
@@ -273,6 +274,12 @@ func (p *prefixedReadWriter) Write(buf []byte) (int, error) { return p.writer.Wr
 // Close closes the underlying connection.
 func (tc *TelnetConn) Close() error {
 	return tc.conn.Close()
+}
+
+// SetReadDeadline sets the read deadline on the underlying TCP connection.
+// This is used for time-limited reads (e.g. node:pause(n) countdown).
+func (tc *TelnetConn) SetReadDeadline(t time.Time) error {
+	return tc.conn.SetReadDeadline(t)
 }
 
 // RemoteAddr returns the remote address of the connection.

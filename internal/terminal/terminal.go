@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type readDeadliner interface {
+	SetReadDeadline(t time.Time) error
+}
+
 // BinaryModeSwitcher is implemented by connection types that support
 // switching to raw binary mode for file transfers (ZMODEM, etc.).
 type BinaryModeSwitcher interface {
@@ -230,68 +234,64 @@ func (t *Terminal) PauseWithTimeout(timeoutSeconds int) error {
 		t.Send("\033[?25l")
 	}
 
-	t.displayPauseCountdown(timeoutSeconds)
+	err := t.displayPauseCountdown(timeoutSeconds)
 
 	// Show the cursor after the keypress or timeout
 	if t.ANSIEnabled {
 		t.Send("\033[?25h")
 	}
 	t.Send("\r\n")
-	return nil
+	return err
 }
 
-func (t *Terminal) displayPauseCountdown(seconds int) {
-	// Use a channel to signal when key is pressed or timeout
-	keyCh := make(chan byte, 1)
-	errCh := make(chan error, 1)
 
-	// Start goroutine to read keypress
-	go func() {
-		buf := make([]byte, 1)
-		n, err := t.rwc.Read(buf)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if n > 0 {
-			keyCh <- buf[0]
-		}
-	}()
+func (t *Terminal) displayPauseCountdown(seconds int) error {
+	rd, canDeadline := t.rwc.(readDeadliner)
+	if canDeadline {
+		defer rd.SetReadDeadline(time.Time{})
+	}
 
 	remaining := seconds
 	for remaining > 0 {
 		// Update display
 		if t.ANSIEnabled {
-			t.Send(fmt.Sprintf("\r%sPress any key to continue... (%d)%s", FgBrightCyan, remaining, Reset))
+			_ = t.Send(fmt.Sprintf("\r%sPress any key to continue... (%d)%s", FgBrightCyan, remaining, Reset))
 		} else {
-			t.Send(fmt.Sprintf("\rPress any key to continue... (%d)", remaining))
+			_ = t.Send(fmt.Sprintf("\rPress any key to continue... (%d)", remaining))
 		}
 
-		// Wait for 1 second, but check for keypress first
-		select {
-		case <-keyCh:
-			// Key was pressed, clear the countdown line and return
-			if t.ANSIEnabled {
-				t.Send("\r" + strings.Repeat(" ", 40) + "\r")
-			} else {
-				t.Send("\r" + strings.Repeat(" ", 30) + "\r")
+		if canDeadline {
+			_ = rd.SetReadDeadline(time.Now().Add(time.Second))
+			_, err := t.GetKey()
+			if err == nil {
+				// Key was pressed, clear the countdown line and return
+				if t.ANSIEnabled {
+					_ = t.Send("\r" + strings.Repeat(" ", 40) + "\r")
+				} else {
+					_ = t.Send("\r" + strings.Repeat(" ", 30) + "\r")
+				}
+				return nil
 			}
-			return
-		case <-errCh:
-			// Error reading
-			return
-		case <-time.After(time.Second):
-			// One second passed
-			remaining--
+			if ne, ok := err.(interface{ Timeout() bool }); ok && ne.Timeout() {
+				remaining--
+				continue
+			}
+			// Any non-timeout error ends the pause.
+			return err
 		}
+
+		// No deadline support: pure countdown (no key read).
+		<-time.After(time.Second)
+		remaining--
 	}
 
 	// Timeout reached, clear the countdown line
 	if t.ANSIEnabled {
-		t.Send("\r" + strings.Repeat(" ", 40) + "\r")
+		_ = t.Send("\r" + strings.Repeat(" ", 40) + "\r")
 	} else {
-		t.Send("\r" + strings.Repeat(" ", 30) + "\r")
+		_ = t.Send("\r" + strings.Repeat(" ", 30) + "\r")
 	}
+	return nil
 }
 
 // YesNo displays a prompt and waits for Y or N.

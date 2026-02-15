@@ -15,7 +15,7 @@ function menu.on_enter(node)
 
     if users.exists(username) then
         node:sendln("  That username is already taken.")
-        node:pause()
+        node:pause(2)
         node:cls()
         node:goto_menu("login")
         return
@@ -25,7 +25,7 @@ function menu.on_enter(node)
     local password = node:password()
     if password == nil or password == "" or #password < 6 then
         node:sendln("  Password must be at least 6 characters.")
-        node:pause()
+        node:pause(2)
         node:cls()
         node:goto_menu("login")
         return
@@ -35,7 +35,7 @@ function menu.on_enter(node)
     local confirm = node:password()
     if confirm ~= password then
         node:sendln("  Passwords do not match.")
-        node:pause()
+        node:pause(2)
         node:cls()
         node:goto_menu("login")
         return
@@ -48,7 +48,7 @@ function menu.on_enter(node)
     local user, err = users.register(username, password, real_name, location, email)
     if user == nil then
         node:sendln("  Registration failed: " .. (err or "unknown error"))
-        node:pause()
+        node:pause(2)
         node:cls()
         node:goto_menu("login")
         return
@@ -57,7 +57,7 @@ function menu.on_enter(node)
     node:sendln("")
     node:sendln("  Account created! Welcome, " .. user.name .. "!")
     node:sendln("")
-    node:pause()
+    node:pause(2)
     node:cls()
     node:goto_menu("main_menu")
 end
