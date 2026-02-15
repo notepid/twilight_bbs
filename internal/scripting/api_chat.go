@@ -45,6 +45,13 @@ func (api *ChatAPI) luaSend(L *lua.LState) int {
 	toNodeID := L.CheckInt(1)
 	text := L.CheckString(2)
 
+	// Validate chat message
+	validator := &ValidateInput{}
+	if err := validator.ValidateChatMessage(text); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+
 	err := api.broker.SendTo(api.nodeID, api.userName(), toNodeID, text)
 	if err != nil {
 		L.Push(lua.LString(err.Error()))
@@ -56,6 +63,14 @@ func (api *ChatAPI) luaSend(L *lua.LState) int {
 
 func (api *ChatAPI) luaBroadcast(L *lua.LState) int {
 	text := L.CheckString(1)
+	
+	// Validate chat message
+	validator := &ValidateInput{}
+	if err := validator.ValidateChatMessage(text); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+	
 	api.broker.Broadcast(api.nodeID, api.userName(), text)
 	return 0
 }

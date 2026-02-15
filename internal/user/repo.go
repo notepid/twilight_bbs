@@ -63,6 +63,24 @@ func (r *Repo) Authenticate(username, password string) (*User, error) {
 	return u, nil
 }
 
+// AuthenticateForSSH validates credentials for SSH authentication.
+// Returns true if credentials are valid, false otherwise.
+// This method does not update last call time to avoid side effects during SSH handshake.
+func (r *Repo) AuthenticateForSSH(username, password string) (bool, error) {
+	u, err := r.GetByUsername(username)
+	if err != nil {
+		// User not found - return false without exposing error
+		return false, nil
+	}
+
+	// Validate password
+	if !CheckPassword(password, u.PasswordHash) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // GetByID retrieves a user by ID.
 func (r *Repo) GetByID(id int) (*User, error) {
 	u := &User{}

@@ -7,7 +7,8 @@ import (
 
 // Config holds file transfer protocol settings.
 type Config struct {
-	SexyzPath string // path to the sexyz binary
+	SexyzPath     string         // path to the sexyz binary
+	PathValidator *PathValidator // optional validator for file paths
 }
 
 // TransferredFile describes a single file that was transferred.

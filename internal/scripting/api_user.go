@@ -67,6 +67,34 @@ func (api *UserAPI) luaRegister(L *lua.LState) int {
 	location := L.OptString(4, "")
 	email := L.OptString(5, "")
 
+	// Validate input
+	validator := &ValidateInput{}
+	if err := validator.ValidateUsername(username); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidatePassword(password); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidateString(realName, "real name", MaxRealNameLen); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidateString(location, "location", MaxLocationLen); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidateEmail(email); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+
 	if api.repo.Exists(username) {
 		L.Push(lua.LNil)
 		L.Push(lua.LString("username already exists"))
@@ -114,6 +142,21 @@ func (api *UserAPI) luaUpdateProfile(L *lua.LState) int {
 	location := L.CheckString(2)
 	email := L.CheckString(3)
 
+	// Validate input
+	validator := &ValidateInput{}
+	if err := validator.ValidateString(realName, "real name", MaxRealNameLen); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+	if err := validator.ValidateString(location, "location", MaxLocationLen); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+	if err := validator.ValidateEmail(email); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+
 	if err := api.repo.UpdateProfile(api.currentUser.ID, realName, location, email); err != nil {
 		L.Push(lua.LString(err.Error()))
 		return 1
@@ -132,6 +175,13 @@ func (api *UserAPI) luaUpdatePassword(L *lua.LState) int {
 		return 1
 	}
 	newPassword := L.CheckString(1)
+
+	// Validate new password
+	validator := &ValidateInput{}
+	if err := validator.ValidatePassword(newPassword); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
 
 	if err := api.repo.UpdatePassword(api.currentUser.ID, newPassword); err != nil {
 		L.Push(lua.LString(err.Error()))

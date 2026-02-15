@@ -138,7 +138,8 @@ func main() {
 
 	// --- SSH server ---
 	hostKeyPath := filepath.Join(cfg.Paths.Data, "ssh_host_key")
-	sshListener, err := server.NewSSHListener(cfg.Server.SSHPort, hostKeyPath, func(sc *server.SSHConn, remoteAddr, username, password string) {
+	sshAuthenticator := user.NewSSHAuthenticator(userRepo)
+	sshListener, err := server.NewSSHListener(cfg.Server.SSHPort, hostKeyPath, sshAuthenticator, func(sc *server.SSHConn, remoteAddr, username, password string) {
 		term := terminal.New(sc, sc.Width, sc.Height, sc.ANSICapable)
 
 		handleConnection(term, remoteAddr, username, password)
