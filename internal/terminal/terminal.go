@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // BinaryModeSwitcher is implemented by connection types that support
@@ -216,6 +217,81 @@ func (t *Terminal) Pause() error {
 	}
 	t.Send("\r\n")
 	return err
+}
+
+// PauseWithTimeout displays a countdown message and waits for a keypress or timeout.
+// If timeoutSeconds is 0, behaves like regular Pause().
+func (t *Terminal) PauseWithTimeout(timeoutSeconds int) error {
+	if timeoutSeconds <= 0 {
+		return t.Pause()
+	}
+
+	if t.ANSIEnabled {
+		t.Send("\033[?25l")
+	}
+
+	t.displayPauseCountdown(timeoutSeconds)
+
+	// Show the cursor after the keypress or timeout
+	if t.ANSIEnabled {
+		t.Send("\033[?25h")
+	}
+	t.Send("\r\n")
+	return nil
+}
+
+func (t *Terminal) displayPauseCountdown(seconds int) {
+	// Use a channel to signal when key is pressed or timeout
+	keyCh := make(chan byte, 1)
+	errCh := make(chan error, 1)
+
+	// Start goroutine to read keypress
+	go func() {
+		buf := make([]byte, 1)
+		n, err := t.rwc.Read(buf)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if n > 0 {
+			keyCh <- buf[0]
+		}
+	}()
+
+	remaining := seconds
+	for remaining > 0 {
+		// Update display
+		if t.ANSIEnabled {
+			t.Send(fmt.Sprintf("\r%sPress any key to continue... (%d)%s", FgBrightCyan, remaining, Reset))
+		} else {
+			t.Send(fmt.Sprintf("\rPress any key to continue... (%d)", remaining))
+		}
+
+		// Wait for 1 second, but check for keypress first
+		select {
+		case <-keyCh:
+			// Key was pressed, clear the countdown line and return
+			if t.ANSIEnabled {
+				t.Send("\r" + strings.Repeat(" ", 40) + "\r")
+			} else {
+				t.Send("\r" + strings.Repeat(" ", 30) + "\r")
+			}
+			return
+		case <-errCh:
+			// Error reading
+			return
+		case <-time.After(time.Second):
+			// One second passed
+			remaining--
+		}
+	}
+
+	// Timeout reached, clear the countdown line
+	if t.ANSIEnabled {
+		t.Send("\r" + strings.Repeat(" ", 40) + "\r")
+	} else {
+		t.Send("\r" + strings.Repeat(" ", 30) + "\r")
+	}
 }
 
 // YesNo displays a prompt and waits for Y or N.

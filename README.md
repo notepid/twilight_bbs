@@ -76,21 +76,7 @@ return menu
 
 ### Lua API
 
-**Node I/O:** `node:send()`, `node:sendln()`, `node:cls()`, `node:display()`, `node:goto_xy()`, `node:color()`, `node:pause()`
-
-**Input:** `node:getkey()`, `node:getline()`, `node:hotkey()`, `node:ask()`, `node:password()`, `node:yesno()`
-
-**Navigation:** `node:goto_menu()`, `node:gosub_menu()`, `node:return_menu()`, `node:disconnect()`
-
-**Users:** `users.login()`, `users.register()`, `users.exists()`, `users.get_current()`, `users.list()`
-
-**Messages:** `msg.areas()`, `msg.list()`, `msg.read()`, `msg.post()`, `msg.scan_new()`
-
-**Files:** `files.areas()`, `files.list()`, `files.search()`, `files.get_file()`
-
-**Doors:** `door.launch(cfg)`, `door.available()`
-
-**Chat:** `chat.send()`, `chat.broadcast()`, `chat.online()`, `chat.enter_room()`, `chat.send_room()`
+See [docs/lua_api.md](./docs/lua_api.md) for the complete Lua API reference.
 
 ### Configuring doors
 

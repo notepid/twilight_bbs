@@ -232,7 +232,12 @@ func (api *NodeAPI) luaColor(L *lua.LState) int {
 }
 
 func (api *NodeAPI) luaPause(L *lua.LState) int {
-	api.term.Pause()
+	timeout := L.OptInt(2, 0)
+	if timeout > 0 {
+		api.term.PauseWithTimeout(timeout)
+	} else {
+		api.term.Pause()
+	}
 	return 0
 }
 

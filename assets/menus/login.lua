@@ -67,7 +67,7 @@ function menu.on_enter(node)
         node:sendln("  Last on: " .. user.last_on)
     end
     node:sendln("")
-    node:pause()
+    node:pause(2)
     node:cls()
     node:goto_menu("main_menu")
 end
