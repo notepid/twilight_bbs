@@ -35,12 +35,41 @@ func (api *TransferAPI) Register(L *lua.LState) {
 	L.SetGlobal("transfer", mod)
 }
 
-// luaSend handles: transfer.send(filepath) → (bool, errString|nil)
+// luaSend handles: transfer.send(filepath | {filepath1, filepath2, ...} | filepath1, filepath2, ...)
+// → (bool, errString|nil)
 //
 // Switches the connection to binary mode, runs SEXYZ sz (ZMODEM send),
 // then restores normal mode.
 func (api *TransferAPI) luaSend(L *lua.LState) int {
-	filePath := L.CheckString(1)
+	argCount := L.GetTop()
+	if argCount == 0 {
+		L.Push(lua.LBool(false))
+		L.Push(lua.LString("missing file paths"))
+		return 2
+	}
+
+	var filePaths []string
+	if argCount == 1 {
+		if tbl, ok := L.Get(1).(*lua.LTable); ok {
+			tbl.ForEach(func(_ lua.LValue, v lua.LValue) {
+				if s, ok := v.(lua.LString); ok {
+					filePaths = append(filePaths, string(s))
+				}
+			})
+		} else {
+			filePaths = append(filePaths, L.CheckString(1))
+		}
+	} else {
+		for i := 1; i <= argCount; i++ {
+			filePaths = append(filePaths, L.CheckString(i))
+		}
+	}
+
+	if len(filePaths) == 0 {
+		L.Push(lua.LBool(false))
+		L.Push(lua.LString("no valid file paths"))
+		return 2
+	}
 
 	if !api.config.Available() {
 		L.Push(lua.LBool(false))
@@ -56,9 +85,9 @@ func (api *TransferAPI) luaSend(L *lua.LState) int {
 	}
 	defer cleanup()
 
-	log.Printf("[transfer] Node %d: sending file %s", api.nodeID, filePath)
+	log.Printf("[transfer] Node %d: sending %d file(s)", api.nodeID, len(filePaths))
 
-	result, err := api.config.Send(rw, isTelnet, filePath)
+	result, err := api.config.Send(rw, isTelnet, filePaths...)
 	if err != nil {
 		L.Push(lua.LBool(false))
 		L.Push(lua.LString(err.Error()))
