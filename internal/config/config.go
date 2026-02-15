@@ -7,20 +7,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the complete BBS configuration.
+// Config holds the BBS configuration (excluding BBS identity settings which are in the database).
 type Config struct {
-	BBS      BBSConfig      `yaml:"bbs"`
 	Server   ServerConfig   `yaml:"server"`
 	Paths    PathsConfig    `yaml:"paths"`
 	Doors    DoorsConfig    `yaml:"doors"`
 	Transfer TransferConfig `yaml:"transfer"`
-}
-
-// BBSConfig holds BBS identity and limits.
-type BBSConfig struct {
-	Name     string `yaml:"name"`
-	Sysop    string `yaml:"sysop"`
-	MaxNodes int    `yaml:"max_nodes"`
 }
 
 // ServerConfig holds network listener settings.
@@ -58,11 +50,6 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg := &Config{
-		BBS: BBSConfig{
-			Name:     "Twilight BBS",
-			Sysop:    "Sysop",
-			MaxNodes: 32,
-		},
 		Server: ServerConfig{
 			TelnetPort: 2323,
 			SSHPort:    2222,

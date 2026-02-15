@@ -1,8 +1,3 @@
-bbs:
-  name: "Twilight BBS"
-  sysop: "Sysop"
-  max_nodes: 32
-
 server:
   telnet_port: 2323
   ssh_port: 2222

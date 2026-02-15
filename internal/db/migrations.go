@@ -112,4 +112,22 @@ var migrations = []migration{
 				(1, 'General Files', 'General purpose file uploads', './data/files', 10, 10, 1)
 		`,
 	},
+	{
+		name: "create bbs_settings table",
+		sql: `
+			CREATE TABLE IF NOT EXISTS bbs_settings (
+				id INTEGER PRIMARY KEY CHECK (id = 1),
+				name TEXT NOT NULL DEFAULT 'Twilight BBS',
+				sysop TEXT NOT NULL DEFAULT 'Sysop',
+				max_nodes INTEGER NOT NULL DEFAULT 32
+			)
+		`,
+	},
+	{
+		name: "seed default bbs_settings",
+		sql: `
+			INSERT OR IGNORE INTO bbs_settings (id, name, sysop, max_nodes) VALUES
+				(1, 'Twilight BBS', 'Sysop', 32)
+		`,
+	},
 }

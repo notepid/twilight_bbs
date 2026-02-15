@@ -36,8 +36,6 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	log.Printf("Starting %s (sysop: %s)", cfg.BBS.Name, cfg.BBS.Sysop)
-
 	// Ensure data directory exists
 	if err := os.MkdirAll(cfg.Paths.Data, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
@@ -50,6 +48,13 @@ func main() {
 	}
 	defer database.Close()
 	log.Printf("Database opened: %s", cfg.Paths.Database)
+
+	// Load BBS settings from database
+	bbsSettings, err := database.GetBBSSettings()
+	if err != nil {
+		log.Fatalf("Failed to load BBS settings: %v", err)
+	}
+	log.Printf("Starting %s (sysop: %s)", bbsSettings.Name, bbsSettings.Sysop)
 
 	// Create repositories
 	userRepo := user.NewRepo(database.DB)
@@ -87,7 +92,7 @@ func main() {
 	}
 
 	// Create node manager
-	nodeMgr := node.NewManager(cfg.BBS.MaxNodes, cfg.BBS.Name, cfg.BBS.Sysop)
+	nodeMgr := node.NewManager(bbsSettings.MaxNodes, bbsSettings.Name, bbsSettings.Sysop)
 
 	// handleConnection wires up a new node session from any connection type.
 	handleConnection := func(term *terminal.Terminal, remoteAddr, username, password string) {
@@ -175,11 +180,11 @@ func main() {
 	}()
 
 	// --- Graceful shutdown ---
-	fmt.Printf("\n%s is running\n", cfg.BBS.Name)
+	fmt.Printf("\n%s is running\n", bbsSettings.Name)
 	fmt.Printf("  Telnet: port %d\n", cfg.Server.TelnetPort)
 	fmt.Printf("  SSH:    port %d\n", cfg.Server.SSHPort)
 	fmt.Printf("  Health: port %d\n", cfg.Server.HealthPort)
-	fmt.Printf("  Nodes:  0/%d\n", cfg.BBS.MaxNodes)
+	fmt.Printf("  Nodes:  0/%d\n", bbsSettings.MaxNodes)
 	fmt.Println("\nPress Ctrl+C to shut down.")
 
 	sigCh := make(chan os.Signal, 1)
@@ -194,5 +199,5 @@ func main() {
 		n.Disconnect()
 	}
 
-	log.Printf("%s shut down complete.", cfg.BBS.Name)
+	log.Printf("%s shut down complete.", bbsSettings.Name)
 }
