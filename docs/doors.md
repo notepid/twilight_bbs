@@ -18,6 +18,7 @@ Doors are configured in the door menu Lua script: `assets/menus/door_menu.lua`.
 | `description` | string | Description shown to users |
 | `drop_file_type` | string | "DOOR.SYS" or "DORINFO1.DEF" (default: "DOOR.SYS") |
 | `security_level` | number | Minimum security level to access (default: 10) |
+| `multiuser` | bool | Allow concurrent users (default: true). If false, only one user can run it at a time. |
 
 ### Placeholders
 
@@ -34,6 +35,7 @@ Example:
     command = "C:\\MYDOOR\\MYDOOR.EXE /N{NODE} /DC:\\NODES\\TEMP{NODE}",
     drop_file_type = "DOOR.SYS",
     security_level = 10,
+    multiuser = true,
 },
 ```
 

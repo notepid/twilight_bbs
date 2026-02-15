@@ -10,6 +10,10 @@ type Config struct {
 	Command       string // DOS executable path (relative to drive C)
 	DropFileType  string // "DOOR.SYS" or "DORINFO1.DEF"
 	SecurityLevel int
+	// MultiUser controls whether multiple users may run this door concurrently.
+	// If false, the BBS will deny launching the door while it is already in use.
+	// Defaults to true when omitted in Lua config tables.
+	MultiUser bool
 }
 
 // Session holds the context for a door session.

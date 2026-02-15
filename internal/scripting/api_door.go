@@ -105,12 +105,20 @@ func parseDoorConfigFromLua(t *lua.LTable) (door.Config, error) {
 	// - command (string, required)
 	// - drop_file_type (string, optional; default DOOR.SYS)
 	// - security_level (number, optional; default 10)
+	// - multiuser (bool, optional; default true)
 	getString := func(key string) string {
 		v := t.RawGetString(key)
 		if s, ok := v.(lua.LString); ok {
 			return string(s)
 		}
 		return ""
+	}
+	getBool := func(key string) (bool, bool) {
+		v := t.RawGetString(key)
+		if b, ok := v.(lua.LBool); ok {
+			return bool(b), true
+		}
+		return false, false
 	}
 	getNumber := func(key string) (float64, bool) {
 		v := t.RawGetString(key)
@@ -146,6 +154,13 @@ func parseDoorConfigFromLua(t *lua.LTable) (door.Config, error) {
 		}
 	}
 
+	multiUser := true
+	if b, ok := getBool("multiuser"); ok {
+		multiUser = b
+	} else if b, ok := getBool("multi_user"); ok {
+		multiUser = b
+	}
+
 	return door.Config{
 		ID:            0,
 		Name:          name,
@@ -153,5 +168,6 @@ func parseDoorConfigFromLua(t *lua.LTable) (door.Config, error) {
 		Command:       command,
 		DropFileType:  drop,
 		SecurityLevel: secLevel,
+		MultiUser:     multiUser,
 	}, nil
 }

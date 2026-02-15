@@ -490,7 +490,7 @@ func (e *Engine) GetField(id string) (ansi.Field, bool) {
 }
 
 func (e *Engine) overlayValuePlaceholders() {
-	if e.currentFields == nil || e.currentUser == nil || !e.term.ANSIEnabled || e.services == nil {
+	if e.currentFields == nil || !e.term.ANSIEnabled || e.services == nil {
 		return
 	}
 
@@ -508,28 +508,42 @@ func (e *Engine) overlayValuePlaceholders() {
 	}
 
 	u := e.currentUser
+	if u != nil {
+		printAt("USERNAME", u.Username)
+		printAt("NAME", u.Username) // alias
+		printAt("REAL_NAME", u.RealName)
+		printAt("LOCATION", u.Location)
+		printAt("EMAIL", u.Email)
 
-	printAt("USERNAME", u.Username)
-	printAt("NAME", u.Username) // alias
-	printAt("REAL_NAME", u.RealName)
-	printAt("LOCATION", u.Location)
-	printAt("EMAIL", u.Email)
+		printAt("LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
+		printAt("SECURITY_LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
+		printAt("CALLS", fmt.Sprintf("%d", u.TotalCalls))
+		printAt("TOTAL_CALLS", fmt.Sprintf("%d", u.TotalCalls))
 
-	printAt("LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
-	printAt("SECURITY_LEVEL", fmt.Sprintf("%d", u.SecurityLevel))
-	printAt("CALLS", fmt.Sprintf("%d", u.TotalCalls))
-	printAt("TOTAL_CALLS", fmt.Sprintf("%d", u.TotalCalls))
-
-	if u.LastCallAt != nil {
-		printAt("LAST_ON", u.LastCallAt.Format("2006-01-02 15:04"))
-	} else {
-		printAt("LAST_ON", "")
+		if u.LastCallAt != nil {
+			printAt("LAST_ON", u.LastCallAt.Format("2006-01-02 15:04"))
+		} else {
+			printAt("LAST_ON", "")
+		}
+		printAt("CREATED", u.CreatedAt.Format("2006-01-02"))
+		printAt("UPDATED", u.UpdatedAt.Format("2006-01-02"))
 	}
-	printAt("CREATED", u.CreatedAt.Format("2006-01-02"))
-	printAt("UPDATED", u.UpdatedAt.Format("2006-01-02"))
 
 	printAt("NODE_ID", fmt.Sprintf("%d", e.services.NodeID))
 	printAt("NOW", time.Now().Format("2006-01-02 15:04"))
+
+	// Dynamic door usage placeholders:
+	//   {{DOOR_USERS:<door name>}} or {{DOOR_USERS:<door name>,width}}
+	// Prints the number of users currently running the named door.
+	if e.services.DoorLauncher != nil {
+		for id := range e.currentFields {
+			if strings.HasPrefix(id, "DOOR_USERS:") {
+				doorName := strings.TrimPrefix(id, "DOOR_USERS:")
+				count := e.services.DoorLauncher.UsersInDoor(doorName)
+				printAt(id, fmt.Sprintf("%d", count))
+			}
+		}
+	}
 }
 
 func padOrTrim(s string, width int) string {

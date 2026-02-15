@@ -50,6 +50,15 @@ Built-in value IDs:
 - `NODE_ID`
 - `NOW` (formatted like `YYYY-MM-DD HH:MM`)
 
+Additional built-in value IDs:
+
+- `DOOR_USERS:<door name>` (prints the number of users currently running the door)
+
+Examples:
+
+- `{{DOOR_USERS:Darkness}}`
+- `{{DOOR_USERS:Darkness,2}}` (pad/trim to 2 characters)
+
 ### Special placeholder: `{{CURSOR}}`
 
 - `{{CURSOR}}` moves the terminal cursor to that position **after** the art is displayed and fields are indexed.

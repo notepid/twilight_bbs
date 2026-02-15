@@ -3,6 +3,7 @@ package door
 import (
 	"fmt"
 	"os/exec"
+	"sync"
 	"strings"
 	"time"
 )
@@ -13,6 +14,9 @@ type Launcher struct {
 	DriveCPath string
 	TempDir    string
 	Timeout    time.Duration // max door runtime; 0 defaults to 60 minutes
+
+	mu    sync.Mutex
+	inUse map[string]int
 }
 
 // NewLauncher creates a new door launcher.
@@ -21,7 +25,67 @@ func NewLauncher(dosemuPath, driveCPath, tempDir string) *Launcher {
 		DosemuPath: dosemuPath,
 		DriveCPath: driveCPath,
 		TempDir:    tempDir,
+		inUse:      make(map[string]int),
 	}
+}
+
+func normalizeDoorKey(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ToLower(name)
+	return name
+}
+
+// UsersInDoor returns how many users are currently running a door.
+// The door is identified by its configured name.
+func (l *Launcher) UsersInDoor(doorName string) int {
+	key := normalizeDoorKey(doorName)
+	if key == "" {
+		return 0
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.inUse[key]
+}
+
+// reserveDoor increments usage for the given door and returns a release function.
+// If the door is not multi-user and is already in use, an error is returned.
+func (l *Launcher) reserveDoor(cfg *Config) (func(), error) {
+	if cfg == nil {
+		return func() {}, fmt.Errorf("missing door config")
+	}
+
+	key := normalizeDoorKey(cfg.Name)
+	if key == "" {
+		return func() {}, fmt.Errorf("door config missing 'name'")
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	current := l.inUse[key]
+	if !cfg.MultiUser && current > 0 {
+		return func() {}, fmt.Errorf("door '%s' is currently in use (%d user(s))", cfg.Name, current)
+	}
+
+	l.inUse[key] = current + 1
+
+	released := false
+	release := func() {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		if released {
+			return
+		}
+		released = true
+		if c := l.inUse[key]; c <= 1 {
+			delete(l.inUse, key)
+		} else {
+			l.inUse[key] = c - 1
+		}
+	}
+
+	return release, nil
 }
 
 // Available checks if dosemu2 is installed and accessible.

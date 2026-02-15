@@ -646,6 +646,7 @@ Launches a door game.
     - `description` (string, optional): Door description
     - `drop_file_type` (string, optional): "DOOR.SYS" or "DORINFO1.DEF" (default: "DOOR.SYS")
     - `security_level` (number, optional): Minimum security level (default: 10)
+    - `multiuser` (boolean, optional): Allow concurrent users (default: true). If false, launch is denied while already in use.
 - **Returns:** `err` or `nil` on success
 
 Example:
@@ -656,5 +657,6 @@ door.launch({
     description = "Play the classic game!",
     drop_file_type = "DOOR.SYS",
     security_level = 10,
+  multiuser = true,
 })
 ```

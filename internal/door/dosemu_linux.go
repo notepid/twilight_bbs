@@ -47,6 +47,12 @@ func resolveDosemuBinary(wrapperPath string) string {
 // dosemu2 expects. BNU FOSSIL driver inside DOS provides the FOSSIL
 // API that door games use to talk to COM1.
 func (l *Launcher) Launch(session *Session, stdin io.Reader, stdout io.Writer) error {
+	release, err := l.reserveDoor(session.DoorConfig)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)

@@ -12,6 +12,7 @@ local menu = {}
 -- - description (string)
 -- - drop_file_type (string; default "DOOR.SYS")
 -- - security_level (number; default 10)
+-- - multiuser (bool; default true). If false, only one user may run the door at a time.
 local doors = {
     -- Example smoke-test door
     --["H"] = {
