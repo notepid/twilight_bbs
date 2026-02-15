@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -93,6 +94,45 @@ type SSHListener struct {
 // NewSSHListener creates a new SSH listener.
 func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, remoteAddr string)) (*SSHListener, error) {
 	config := &ssh.ServerConfig{
+		Config: ssh.Config{
+			KeyExchanges: []string{
+				// Modern first
+				"curve25519-sha256",
+				"curve25519-sha256@libssh.org",
+				"ecdh-sha2-nistp256",
+				"ecdh-sha2-nistp384",
+				"ecdh-sha2-nistp521",
+				"diffie-hellman-group-exchange-sha256",
+				"diffie-hellman-group14-sha256",
+				"diffie-hellman-group16-sha512",
+				// Legacy for older SSH clients (SyncTerm cryptlib/libssh2)
+				"diffie-hellman-group-exchange-sha1",
+				"diffie-hellman-group14-sha1",
+				"diffie-hellman-group1-sha1",
+			},
+			Ciphers: []string{
+				// Modern first
+				"chacha20-poly1305@openssh.com",
+				"aes128-gcm@openssh.com",
+				"aes256-gcm@openssh.com",
+				"aes128-ctr",
+				"aes192-ctr",
+				"aes256-ctr",
+				// Legacy CBC modes for older SSH clients
+				"aes128-cbc",
+				"3des-cbc",
+			},
+			MACs: []string{
+				// Modern first
+				"hmac-sha2-256-etm@openssh.com",
+				"hmac-sha2-512-etm@openssh.com",
+				"hmac-sha2-256",
+				"hmac-sha2-512",
+				// Legacy
+				"hmac-sha1",
+			},
+		},
+		ServerVersion: "SSH-2.0-TwilightBBS",
 		// Password auth callback - we let the BBS handle actual auth
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			// Accept all passwords at SSH level - the BBS login menu handles real auth
@@ -119,51 +159,122 @@ func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, re
 
 // loadOrGenerateHostKey loads an existing host key or generates a new one.
 func (l *SSHListener) loadOrGenerateHostKey() error {
-	// Try to load existing key
-	if data, err := os.ReadFile(l.hostKeyPath); err == nil {
-		key, err := ssh.ParsePrivateKey(data)
+	loadKey := func(path string) (ssh.Signer, bool, error) {
+		data, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("parse host key: %w", err)
+			if os.IsNotExist(err) {
+				return nil, false, nil
+			}
+			return nil, false, err
 		}
-		l.config.AddHostKey(key)
-		log.Printf("SSH: loaded host key from %s", l.hostKeyPath)
+		signer, err := ssh.ParsePrivateKey(data)
+		if err != nil {
+			return nil, false, fmt.Errorf("parse host key %s: %w", path, err)
+		}
+		return signer, true, nil
+	}
+
+	wrapRSA := func(signer ssh.Signer) ssh.Signer {
+		// Newer Go x/crypto only advertises rsa-sha2-256/512 for RSA keys.
+		// SyncTerm (libssh2) only understands "ssh-rsa", so we must include it.
+		if signer.PublicKey().Type() == ssh.KeyAlgoRSA {
+			if as, ok := signer.(ssh.AlgorithmSigner); ok {
+				wrapped, err := ssh.NewSignerWithAlgorithms(as, []string{
+					ssh.KeyAlgoRSASHA512,
+					ssh.KeyAlgoRSASHA256,
+					ssh.KeyAlgoRSA, // legacy ssh-rsa for SyncTerm/libssh2
+				})
+				if err == nil {
+					return wrapped
+				}
+				log.Printf("SSH: warning: could not wrap RSA signer: %v", err)
+			}
+		}
+		return signer
+	}
+
+	addKeyFromPath := func(path string) (bool, error) {
+		signer, ok, err := loadKey(path)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, nil
+		}
+		l.config.AddHostKey(wrapRSA(signer))
+		log.Printf("SSH: loaded host key from %s (%s)", path, signer.PublicKey().Type())
+		return true, nil
+	}
+
+	ensureDir := func() error {
+		dir := filepath.Dir(l.hostKeyPath)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return fmt.Errorf("create key dir: %w", err)
+		}
 		return nil
 	}
 
-	// Generate new ED25519 key
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return fmt.Errorf("generate key: %w", err)
+	// 1) Primary host key (existing behavior): ED25519 in l.hostKeyPath
+	if ok, err := addKeyFromPath(l.hostKeyPath); err != nil {
+		return err
+	} else if !ok {
+		// Generate new ED25519 key
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return fmt.Errorf("generate ed25519 key: %w", err)
+		}
+
+		// Marshal to PKCS8 and PEM-encode
+		privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+		if err != nil {
+			return fmt.Errorf("marshal ed25519 key: %w", err)
+		}
+
+		pemData := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
+
+		if err := ensureDir(); err != nil {
+			return err
+		}
+		if err := os.WriteFile(l.hostKeyPath, pemData, 0600); err != nil {
+			return fmt.Errorf("write host key: %w", err)
+		}
+
+		signer, err := ssh.ParsePrivateKey(pemData)
+		if err != nil {
+			return fmt.Errorf("parse new ed25519 key: %w", err)
+		}
+		l.config.AddHostKey(signer)
+		log.Printf("SSH: generated new host key at %s (%s)", l.hostKeyPath, signer.PublicKey().Type())
 	}
 
-	// Marshal to PKCS8 and PEM-encode
-	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		return fmt.Errorf("marshal key: %w", err)
+	// 2) Additional RSA host key for legacy SSH clients (e.g., SyncTerm/libssh2)
+	rsaKeyPath := l.hostKeyPath + "_rsa"
+	if ok, err := addKeyFromPath(rsaKeyPath); err != nil {
+		return err
+	} else if !ok {
+		priv, err := rsa.GenerateKey(rand.Reader, 4096)
+		if err != nil {
+			return fmt.Errorf("generate rsa key: %w", err)
+		}
+
+		privBytes := x509.MarshalPKCS1PrivateKey(priv)
+		pemData := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privBytes})
+
+		if err := ensureDir(); err != nil {
+			return err
+		}
+		if err := os.WriteFile(rsaKeyPath, pemData, 0600); err != nil {
+			return fmt.Errorf("write rsa host key: %w", err)
+		}
+
+		signer, err := ssh.ParsePrivateKey(pemData)
+		if err != nil {
+			return fmt.Errorf("parse new rsa key: %w", err)
+		}
+		l.config.AddHostKey(wrapRSA(signer))
+		log.Printf("SSH: generated new host key at %s (%s)", rsaKeyPath, signer.PublicKey().Type())
 	}
 
-	pemBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privBytes,
-	}
-	pemData := pem.EncodeToMemory(pemBlock)
-
-	// Save to file
-	dir := filepath.Dir(l.hostKeyPath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create key dir: %w", err)
-	}
-	if err := os.WriteFile(l.hostKeyPath, pemData, 0600); err != nil {
-		return fmt.Errorf("write host key: %w", err)
-	}
-
-	key, err := ssh.ParsePrivateKey(pemData)
-	if err != nil {
-		return fmt.Errorf("parse new key: %w", err)
-	}
-	l.config.AddHostKey(key)
-
-	log.Printf("SSH: generated new host key at %s", l.hostKeyPath)
 	return nil
 }
 
