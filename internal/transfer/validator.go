@@ -54,17 +54,6 @@ func (v *PathValidator) ValidatePath(path string) error {
 		if strings.HasPrefix(absPath, root) {
 			return nil
 		}
-		// Also check parent directory (for file paths)
-		parentPath := filepath.Dir(filepath.Clean(path))
-		if parentPath != "" {
-			absParent, _ := filepath.Abs(parentPath)
-			if absParent != "" && !strings.HasSuffix(absParent, string(filepath.Separator)) {
-				absParent += string(filepath.Separator)
-			}
-			if strings.HasPrefix(absParent, root) {
-				return nil
-			}
-		}
 	}
 
 	return fmt.Errorf("path is outside authorized directories: %s", absPath)

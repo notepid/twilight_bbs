@@ -2,6 +2,7 @@ package scripting
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
@@ -81,8 +82,15 @@ func (v *ValidateInput) ValidateEmail(email string) error {
 		return err
 	}
 	
-	// Basic email validation
-	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+	// Basic email validation - check for @ with domain part
+	atIndex := strings.Index(email, "@")
+	if atIndex <= 0 || atIndex == len(email)-1 {
+		return fmt.Errorf("invalid email format")
+	}
+	
+	// Check for at least one dot in domain part
+	domain := email[atIndex+1:]
+	if !strings.Contains(domain, ".") || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") {
 		return fmt.Errorf("invalid email format")
 	}
 	
@@ -121,10 +129,16 @@ func (v *ValidateInput) ValidateFilename(filename string) error {
 		return err
 	}
 	
-	// Check for path traversal attempts
-	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || 
-	   strings.Contains(filename, "\\") {
-		return fmt.Errorf("filename contains invalid path characters")
+	// Clean the path and verify it equals the base name (no directory components)
+	cleaned := filepath.Clean(filename)
+	base := filepath.Base(cleaned)
+	if cleaned != base || base == "." || base == ".." {
+		return fmt.Errorf("filename contains path components")
+	}
+	
+	// Check for path separators (belt and suspenders)
+	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		return fmt.Errorf("filename contains path separators")
 	}
 	
 	// Check for null bytes and control characters
