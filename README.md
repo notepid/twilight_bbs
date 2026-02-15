@@ -21,6 +21,10 @@ A multi-node ANSI BBS written in Go with Lua scripting, supporting telnet and SS
 go build -o tbbs ./cmd/bbs/
 ./tbbs -config config.yaml
 
+# Admin TUI
+go run ./cmd/bbs-admin/            # uses config.yaml by default
+go run ./cmd/bbs-admin/ -config config.yaml
+
 # Connect
 telnet localhost 2323
 # or
