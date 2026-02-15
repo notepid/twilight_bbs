@@ -41,79 +41,15 @@ Menus are defined as file triplets in `assets/menus/`:
 - `menu_name.asc` - Plain ASCII fallback
 - `menu_name.lua` - Lua script with key/input handlers
 
-### Lua Script Structure
-
-```lua
-local menu = {}
-
-function menu.on_load(node)
-    -- called BEFORE menu art is displayed
-    -- use this to clear screen or set initial state
-    node:cls()
-end
-
-function menu.on_enter(node)
-    -- called AFTER menu art is displayed
-end
-
-function menu.on_key(node, key)
-    -- called on single keypress (hotkey mode)
-    if key == "Q" or key == "q" then
-        node:goto_menu("main_menu")
-    end
-end
-
-function menu.on_input(node, input)
-    -- called when user types string + Enter
-end
-
-function menu.on_exit(node)
-    -- called when leaving the menu
-end
-
-return menu
-```
-
-### Lua API
-
-See [docs/lua_api.md](./docs/lua_api.md) for the complete Lua API reference.
+See [docs/menu_scripting.md](./docs/menu_scripting.md) for complete menu scripting guide.
 
 ### Configuring doors
 
-Doors are configured in the door menu Lua script: `assets/menus/door_menu.lua`.
-
-- Edit `assets/menus/door_menu.ans` / `assets/menus/door_menu.asc` for the on-screen text.
-- Edit the `doors` table in `assets/menus/door_menu.lua` to map single-key hotkeys to door configs.
+See [docs/doors.md](./docs/doors.md) for complete door configuration reference.
 
 ## Configuration
 
-See `config.yaml` for all options. Key settings:
-
-```yaml
-bbs:
-  name: "Twilight BBS"
-  sysop: "Sysop"
-  max_nodes: 32
-
-server:
-  telnet_port: 2323
-  ssh_port: 2222
-  health_port: 2223
-
-paths:
-  menus: "./assets/menus"
-  text: "./assets/text"
-  doors: "./assets/doors"
-  data: "./data"
-  database: "./data/twilight.db"
-
-doors:
-  dosemu_path: "/usr/bin/dosemu"
-  drive_c: "./doors/drive_c"
-
-transfer:
-  sexyz_path: "/usr/local/bin/sexyz"
-```
+See [docs/configuration.md](./docs/configuration.md) for all configuration options.
 
 ## Technology
 
