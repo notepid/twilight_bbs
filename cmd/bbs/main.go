@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/notepid/twilight_bbs/internal/ansi"
+	"github.com/notepid/twilight_bbs/internal/chat"
 	"github.com/notepid/twilight_bbs/internal/config"
 	"github.com/notepid/twilight_bbs/internal/db"
 	"github.com/notepid/twilight_bbs/internal/door"
@@ -23,7 +24,6 @@ import (
 	"github.com/notepid/twilight_bbs/internal/terminal"
 	"github.com/notepid/twilight_bbs/internal/transfer"
 	"github.com/notepid/twilight_bbs/internal/user"
-	"github.com/notepid/twilight_bbs/internal/chat"
 )
 
 func main() {
@@ -90,7 +90,7 @@ func main() {
 	nodeMgr := node.NewManager(cfg.BBS.MaxNodes, cfg.BBS.Name, cfg.BBS.Sysop)
 
 	// handleConnection wires up a new node session from any connection type.
-	handleConnection := func(term *terminal.Terminal, remoteAddr string) {
+	handleConnection := func(term *terminal.Terminal, remoteAddr, username, password string) {
 		nodeID, ok := nodeMgr.Acquire()
 		if !ok {
 			term.SendLn("Sorry, all nodes are busy. Please try again later.")
@@ -108,6 +108,8 @@ func main() {
 		n.DoorLauncher = doorLauncher
 		n.TransferConfig = transferConfig
 		n.DB = database.DB
+		n.PreAuthUsername = username
+		n.PreAuthPassword = password
 
 		nodeMgr.Add(n)
 		n.Run(nodeMgr)
@@ -125,7 +127,7 @@ func main() {
 		term := terminal.New(tc, tc.Width, tc.Height, tc.ANSICapable)
 		term.SetEchoControl(tc.SetEcho)
 
-		handleConnection(term, tc.RemoteAddr().String())
+		handleConnection(term, tc.RemoteAddr().String(), "", "")
 	})
 
 	go func() {
@@ -136,10 +138,10 @@ func main() {
 
 	// --- SSH server ---
 	hostKeyPath := filepath.Join(cfg.Paths.Data, "ssh_host_key")
-	sshListener, err := server.NewSSHListener(cfg.Server.SSHPort, hostKeyPath, func(sc *server.SSHConn, remoteAddr string) {
+	sshListener, err := server.NewSSHListener(cfg.Server.SSHPort, hostKeyPath, func(sc *server.SSHConn, remoteAddr, username, password string) {
 		term := terminal.New(sc, sc.Width, sc.Height, sc.ANSICapable)
 
-		handleConnection(term, remoteAddr)
+		handleConnection(term, remoteAddr, username, password)
 	})
 	if err != nil {
 		log.Fatalf("Failed to create SSH listener: %v", err)

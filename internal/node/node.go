@@ -32,11 +32,15 @@ type Node struct {
 	UserID   int
 	UserName string
 
+	// Pre-authenticated credentials (from SSH)
+	PreAuthUsername string
+	PreAuthPassword string
+
 	// Dependencies injected from main
-	MenuRegistry *menu.Registry
-	ANSILoader   *ansi.Loader
-	UserRepo     *user.Repo
-	MessageRepo  *message.Repo
+	MenuRegistry   *menu.Registry
+	ANSILoader     *ansi.Loader
+	UserRepo       *user.Repo
+	MessageRepo    *message.Repo
 	FileRepo       *filearea.Repo
 	ChatBroker     *chat.Broker
 	DoorLauncher   *door.Launcher
@@ -80,20 +84,25 @@ func (n *Node) Run(mgr *Manager) {
 
 	if n.MenuRegistry != nil && n.ANSILoader != nil {
 		svc := &menu.Services{
-			UserRepo:       n.UserRepo,
-			MessageRepo:    n.MessageRepo,
-			FileRepo:       n.FileRepo,
-			ChatBroker:     n.ChatBroker,
-			DoorLauncher:   n.DoorLauncher,
-			TransferConfig: n.TransferConfig,
-			DB:             n.DB,
-			NodeID:         n.ID,
+			UserRepo:        n.UserRepo,
+			MessageRepo:     n.MessageRepo,
+			FileRepo:        n.FileRepo,
+			ChatBroker:      n.ChatBroker,
+			DoorLauncher:    n.DoorLauncher,
+			TransferConfig:  n.TransferConfig,
+			DB:              n.DB,
+			NodeID:          n.ID,
+			PreAuthUsername: n.PreAuthUsername,
+			PreAuthPassword: n.PreAuthPassword,
 		}
 
 		engine := menu.NewEngine(n.MenuRegistry, n.ANSILoader, n.Term, svc)
 		defer engine.Close()
 
 		startMenu := "welcome"
+		if n.PreAuthUsername != "" && n.PreAuthPassword != "" {
+			startMenu = "welcome_ssh"
+		}
 		if m := n.MenuRegistry.Get(startMenu); m == nil {
 			startMenu = "main_menu"
 		}
@@ -136,4 +145,16 @@ func (n *Node) Disconnect() {
 		close(n.done)
 	}
 	n.Term.Close()
+}
+
+// AttemptPreAuth attempts to authenticate using pre-auth credentials (from SSH).
+// Returns the authenticated user and any error.
+func (n *Node) AttemptPreAuth() (*user.User, error) {
+	if n.PreAuthUsername == "" || n.PreAuthPassword == "" {
+		return nil, nil
+	}
+	if n.UserRepo == nil {
+		return nil, nil
+	}
+	return n.UserRepo.Authenticate(n.PreAuthUsername, n.PreAuthPassword)
 }

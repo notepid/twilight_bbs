@@ -30,6 +30,10 @@ type SSHConn struct {
 	Height      int
 	ANSICapable bool
 	TermType    string
+
+	// Pre-authenticated credentials from SSH handshake
+	Username string
+	Password string
 }
 
 // NewSSHConn wraps an SSH channel.
@@ -84,15 +88,26 @@ func (sc *SSHConn) EnterBinaryMode() (io.ReadWriter, func(), bool) {
 type SSHListener struct {
 	addr        string
 	config      *ssh.ServerConfig
-	handler     func(conn *SSHConn, remoteAddr string)
+	handler     func(conn *SSHConn, remoteAddr, username, password string)
 	hostKeyPath string
 
 	attemptMu sync.Mutex
 	attempts  map[string]*sshAttempt
+
+	// Captured credentials from SSH auth
+	username string
+	password string
 }
 
 // NewSSHListener creates a new SSH listener.
-func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, remoteAddr string)) (*SSHListener, error) {
+func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, remoteAddr, username, password string)) (*SSHListener, error) {
+	l := &SSHListener{
+		addr:        fmt.Sprintf(":%d", port),
+		handler:     handler,
+		hostKeyPath: hostKeyPath,
+		attempts:    make(map[string]*sshAttempt),
+	}
+
 	config := &ssh.ServerConfig{
 		Config: ssh.Config{
 			KeyExchanges: []string{
@@ -133,21 +148,15 @@ func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, re
 			},
 		},
 		ServerVersion: "SSH-2.0-TwilightBBS",
-		// Password auth callback - we let the BBS handle actual auth
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			// Accept all passwords at SSH level - the BBS login menu handles real auth
+			l.username = c.User()
+			l.password = string(pass)
 			return nil, nil
 		},
-		NoClientAuth: true, // Allow connections without auth at SSH level
+		NoClientAuth: true,
 	}
 
-	l := &SSHListener{
-		addr:        fmt.Sprintf(":%d", port),
-		config:      config,
-		handler:     handler,
-		hostKeyPath: hostKeyPath,
-		attempts:    make(map[string]*sshAttempt),
-	}
+	l.config = config
 
 	// Load or generate host key
 	if err := l.loadOrGenerateHostKey(); err != nil {
@@ -426,7 +435,9 @@ func (l *SSHListener) handleConnection(conn net.Conn) {
 					}
 					// Create SSHConn and hand off to BBS
 					sc := NewSSHConn(channel, width, height, termType)
-					l.handler(sc, remoteAddr)
+					sc.Username = l.username
+					sc.Password = l.password
+					l.handler(sc, remoteAddr, sc.Username, sc.Password)
 					channel.Close()
 					return
 
