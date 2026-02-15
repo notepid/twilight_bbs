@@ -147,6 +147,19 @@ func (api *FileAPI) luaAddEntry(L *lua.LState) int {
 	description := L.OptString(3, "")
 	sizeBytes := L.OptInt64(4, 0)
 
+	// Validate filename to prevent path traversal
+	validator := &ValidateInput{}
+	if err := validator.ValidateFilename(filename); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidateString(description, "description", 255); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+
 	id, err := api.repo.AddEntry(areaID, filename, description, sizeBytes, u.ID)
 	if err != nil {
 		L.Push(lua.LNil)

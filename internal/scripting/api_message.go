@@ -133,6 +133,19 @@ func (api *MessageAPI) luaPost(L *lua.LState) int {
 	body := L.CheckString(3)
 	toStr := L.OptString(4, "")
 
+	// Validate input
+	validator := &ValidateInput{}
+	if err := validator.ValidateString(subject, "subject", MaxSubjectLen); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	if err := validator.ValidateMessageBody(body); err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+
 	var toUserID *int
 	if toStr != "" {
 		// Look up recipient - we'd need user repo here
