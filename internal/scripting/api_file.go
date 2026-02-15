@@ -29,6 +29,7 @@ func (api *FileAPI) Register(L *lua.LState) {
 	mod.RawSetString("get_file", L.NewFunction(api.luaGetFile))
 	mod.RawSetString("search", L.NewFunction(api.luaSearch))
 	mod.RawSetString("add_entry", L.NewFunction(api.luaAddEntry))
+	mod.RawSetString("increment_download", L.NewFunction(api.luaIncrementDownload))
 
 	L.SetGlobal("files", mod)
 }
@@ -55,6 +56,7 @@ func (api *FileAPI) luaAreas(L *lua.LState) int {
 		at.RawSetString("files", lua.LNumber(a.FileCount))
 		at.RawSetString("download_level", lua.LNumber(a.DownloadLevel))
 		at.RawSetString("upload_level", lua.LNumber(a.UploadLevel))
+		at.RawSetString("path", lua.LString(a.DiskPath))
 		tbl.RawSetInt(i+1, at)
 	}
 	L.Push(tbl)
@@ -74,6 +76,8 @@ func (api *FileAPI) luaGetArea(L *lua.LState) int {
 	at.RawSetString("name", lua.LString(a.Name))
 	at.RawSetString("description", lua.LString(a.Description))
 	at.RawSetString("path", lua.LString(a.DiskPath))
+	at.RawSetString("upload_level", lua.LNumber(a.UploadLevel))
+	at.RawSetString("download_level", lua.LNumber(a.DownloadLevel))
 	L.Push(at)
 	return 1
 }
@@ -153,6 +157,16 @@ func (api *FileAPI) luaAddEntry(L *lua.LState) int {
 	L.Push(lua.LNumber(id))
 	L.Push(lua.LNil)
 	return 2
+}
+
+func (api *FileAPI) luaIncrementDownload(L *lua.LState) int {
+	fileID := L.CheckInt(1)
+	if err := api.repo.IncrementDownload(fileID); err != nil {
+		L.Push(lua.LString(err.Error()))
+		return 1
+	}
+	L.Push(lua.LNil)
+	return 1
 }
 
 func (api *FileAPI) entryToTable(L *lua.LState, e *filearea.Entry) *lua.LTable {

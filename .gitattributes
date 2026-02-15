@@ -16,3 +16,6 @@ doors/**/*.[7][Zz] binary
 doors/**/*.[Aa][Rr][Jj] binary
 doors/**/*.[Ll][Zz][Hh] binary
 doors/**/*.[Ll][Hh][Aa] binary
+
+# Pre-compiled external tools (Linux x86_64)
+bin/sexyz binary -diff

@@ -16,6 +16,7 @@ import (
 	"github.com/notepid/twilight_bbs/internal/message"
 	"github.com/notepid/twilight_bbs/internal/scripting"
 	"github.com/notepid/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/transfer"
 	"github.com/notepid/twilight_bbs/internal/user"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -28,13 +29,14 @@ var ErrMenuNotFound = errors.New("menu not found")
 
 // Services holds shared services available to the menu engine.
 type Services struct {
-	UserRepo     *user.Repo
-	MessageRepo  *message.Repo
-	FileRepo     *filearea.Repo
-	ChatBroker   *chat.Broker
-	DoorLauncher *door.Launcher
-	DB           *sql.DB
-	NodeID       int
+	UserRepo       *user.Repo
+	MessageRepo    *message.Repo
+	FileRepo       *filearea.Repo
+	ChatBroker     *chat.Broker
+	DoorLauncher   *door.Launcher
+	TransferConfig *transfer.Config
+	DB             *sql.DB
+	NodeID         int
 }
 
 // Engine manages the menu system for a single node/session.
@@ -48,9 +50,10 @@ type Engine struct {
 	userAPI  *scripting.UserAPI
 	msgAPI   *scripting.MessageAPI
 	fileAPI  *scripting.FileAPI
-	chatAPI  *scripting.ChatAPI
-	doorAPI  *scripting.DoorAPI
-	nodeUD   *lua.LUserData
+	chatAPI      *scripting.ChatAPI
+	doorAPI      *scripting.DoorAPI
+	transferAPI  *scripting.TransferAPI
+	nodeUD       *lua.LUserData
 
 	// Current user
 	currentUser *user.User
@@ -158,6 +161,12 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 		}
 	}
 
+	// Register transfer API if config is available
+	if svc != nil && svc.TransferConfig != nil {
+		e.transferAPI = scripting.NewTransferAPI(svc.TransferConfig, term.EnterBinaryMode, svc.NodeID)
+		e.transferAPI.Register(vm.L)
+	}
+
 	return e
 }
 
@@ -258,6 +267,9 @@ func (e *Engine) runMenu(name string) error {
 		}
 		if e.doorAPI != nil {
 			e.doorAPI.Register(e.vm.L)
+		}
+		if e.transferAPI != nil {
+			e.transferAPI.Register(e.vm.L)
 		}
 
 		oldVM.Close()

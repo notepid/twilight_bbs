@@ -13,6 +13,7 @@ import (
 	"github.com/notepid/twilight_bbs/internal/menu"
 	"github.com/notepid/twilight_bbs/internal/message"
 	"github.com/notepid/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/transfer"
 	"github.com/notepid/twilight_bbs/internal/user"
 )
 
@@ -36,10 +37,11 @@ type Node struct {
 	ANSILoader   *ansi.Loader
 	UserRepo     *user.Repo
 	MessageRepo  *message.Repo
-	FileRepo     *filearea.Repo
-	ChatBroker   *chat.Broker
-	DoorLauncher *door.Launcher
-	DB           *sql.DB
+	FileRepo       *filearea.Repo
+	ChatBroker     *chat.Broker
+	DoorLauncher   *door.Launcher
+	TransferConfig *transfer.Config
+	DB             *sql.DB
 
 	// Shutdown signal
 	done chan struct{}
@@ -78,13 +80,14 @@ func (n *Node) Run(mgr *Manager) {
 
 	if n.MenuRegistry != nil && n.ANSILoader != nil {
 		svc := &menu.Services{
-			UserRepo:     n.UserRepo,
-			MessageRepo:  n.MessageRepo,
-			FileRepo:     n.FileRepo,
-			ChatBroker:   n.ChatBroker,
-			DoorLauncher: n.DoorLauncher,
-			DB:           n.DB,
-			NodeID:       n.ID,
+			UserRepo:       n.UserRepo,
+			MessageRepo:    n.MessageRepo,
+			FileRepo:       n.FileRepo,
+			ChatBroker:     n.ChatBroker,
+			DoorLauncher:   n.DoorLauncher,
+			TransferConfig: n.TransferConfig,
+			DB:             n.DB,
+			NodeID:         n.ID,
 		}
 
 		engine := menu.NewEngine(n.MenuRegistry, n.ANSILoader, n.Term, svc)

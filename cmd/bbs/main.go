@@ -21,6 +21,7 @@ import (
 	"github.com/notepid/twilight_bbs/internal/node"
 	"github.com/notepid/twilight_bbs/internal/server"
 	"github.com/notepid/twilight_bbs/internal/terminal"
+	"github.com/notepid/twilight_bbs/internal/transfer"
 	"github.com/notepid/twilight_bbs/internal/user"
 	"github.com/notepid/twilight_bbs/internal/chat"
 )
@@ -75,6 +76,16 @@ func main() {
 	// Create ANSI display file loader
 	ansiLoader := ansi.NewLoader(cfg.Paths.Menus, cfg.Paths.Text)
 
+	// Create transfer config for ZMODEM file transfers
+	transferConfig := &transfer.Config{
+		SexyzPath: cfg.Transfer.SexyzPath,
+	}
+	if transferConfig.Available() {
+		log.Printf("File transfer: SEXYZ found at %s", cfg.Transfer.SexyzPath)
+	} else {
+		log.Printf("File transfer: SEXYZ not found at %s (file transfers disabled)", cfg.Transfer.SexyzPath)
+	}
+
 	// Create node manager
 	nodeMgr := node.NewManager(cfg.BBS.MaxNodes, cfg.BBS.Name, cfg.BBS.Sysop)
 
@@ -95,6 +106,7 @@ func main() {
 		n.FileRepo = fileRepo
 		n.ChatBroker = chatBroker
 		n.DoorLauncher = doorLauncher
+		n.TransferConfig = transferConfig
 		n.DB = database.DB
 
 		nodeMgr.Add(n)

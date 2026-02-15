@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -207,6 +208,67 @@ func (tc *TelnetConn) WriteRaw(p []byte) (int, error) {
 	defer tc.mu.Unlock()
 	return tc.conn.Write(p)
 }
+
+// rawTelnetRW wraps the raw TCP connection for binary mode transfers.
+// It bypasses the TelnetConn's IAC filtering/escaping entirely so that
+// external tools (like SEXYZ with -telnet) can handle the telnet protocol.
+type rawTelnetRW struct {
+	conn net.Conn
+}
+
+func (r *rawTelnetRW) Read(p []byte) (int, error)  { return r.conn.Read(p) }
+func (r *rawTelnetRW) Write(p []byte) (int, error) { return r.conn.Write(p) }
+
+// EnterBinaryMode switches the telnet connection into raw binary mode for
+// file transfers. It drains any bytes already buffered in the internal
+// bufio.Reader and returns:
+//   - rw: a raw io.ReadWriter bypassing all IAC processing
+//   - cleanup: a function to call when the transfer is done to restore
+//     normal telnet operation
+//   - isTelnet: true, indicating the caller should tell the transfer tool
+//     that this is a telnet connection (e.g. SEXYZ -telnet flag)
+func (tc *TelnetConn) EnterBinaryMode() (io.ReadWriter, func(), bool) {
+	// Drain any data already buffered in the bufio.Reader. These bytes
+	// have been read from the TCP socket but not yet consumed by the BBS.
+	// We must include them in the raw stream so the transfer tool sees them.
+	buffered := tc.reader.Buffered()
+	var prefix []byte
+	if buffered > 0 {
+		prefix = make([]byte, buffered)
+		n, _ := tc.reader.Read(prefix)
+		prefix = prefix[:n]
+	}
+
+	raw := &rawTelnetRW{conn: tc.conn}
+
+	var rw io.ReadWriter
+	if len(prefix) > 0 {
+		// Prepend the buffered bytes so the transfer tool reads them first.
+		rw = &prefixedReadWriter{
+			reader: io.MultiReader(bytes.NewReader(prefix), raw),
+			writer: raw,
+		}
+	} else {
+		rw = raw
+	}
+
+	cleanup := func() {
+		// Rebuild the buffered reader around the raw connection so that
+		// normal telnet IAC processing resumes.
+		tc.reader = bufio.NewReaderSize(tc.conn, 1024)
+	}
+
+	return rw, cleanup, true
+}
+
+// prefixedReadWriter combines a composite reader (prefix + raw) with a writer.
+type prefixedReadWriter struct {
+	reader io.Reader
+	writer io.Writer
+}
+
+func (p *prefixedReadWriter) Read(buf []byte) (int, error)  { return p.reader.Read(buf) }
+func (p *prefixedReadWriter) Write(buf []byte) (int, error) { return p.writer.Write(buf) }
 
 // Close closes the underlying connection.
 func (tc *TelnetConn) Close() error {
