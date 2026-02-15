@@ -9,10 +9,11 @@ import (
 
 // Config holds the complete BBS configuration.
 type Config struct {
-	BBS    BBSConfig    `yaml:"bbs"`
-	Server ServerConfig `yaml:"server"`
-	Paths  PathsConfig  `yaml:"paths"`
-	Doors  DoorsConfig  `yaml:"doors"`
+	BBS      BBSConfig      `yaml:"bbs"`
+	Server   ServerConfig   `yaml:"server"`
+	Paths    PathsConfig    `yaml:"paths"`
+	Doors    DoorsConfig    `yaml:"doors"`
+	Transfer TransferConfig `yaml:"transfer"`
 }
 
 // BBSConfig holds BBS identity and limits.
@@ -44,6 +45,11 @@ type DoorsConfig struct {
 	DriveC     string `yaml:"drive_c"`
 }
 
+// TransferConfig holds file transfer protocol settings.
+type TransferConfig struct {
+	SexyzPath string `yaml:"sexyz_path"`
+}
+
 // Load reads and parses a YAML config file.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -72,6 +78,9 @@ func Load(path string) (*Config, error) {
 		Doors: DoorsConfig{
 			DosemuPath: "/usr/bin/dosemu",
 			DriveC:     "./doors/drive_c",
+		},
+		Transfer: TransferConfig{
+			SexyzPath: "/usr/local/bin/sexyz",
 		},
 	}
 

@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+// BinaryModeSwitcher is implemented by connection types that support
+// switching to raw binary mode for file transfers (ZMODEM, etc.).
+type BinaryModeSwitcher interface {
+	// EnterBinaryMode returns a raw ReadWriter that bypasses any protocol
+	// processing (e.g. telnet IAC filtering), a cleanup function to restore
+	// normal operation, and a bool indicating whether the connection is telnet.
+	EnterBinaryMode() (io.ReadWriter, func(), bool)
+}
+
 // Terminal provides a high-level read/write abstraction over a raw
 // connection. It handles CRLF line endings and provides BBS-oriented
 // I/O methods.
@@ -33,6 +42,17 @@ func New(rwc io.ReadWriteCloser, width, height int, ansiEnabled bool) *Terminal 
 // SetEchoControl registers a callback for enabling/disabling echo behavior.
 func (t *Terminal) SetEchoControl(fn func(on bool) error) {
 	t.echoControl = fn
+}
+
+// EnterBinaryMode switches the underlying connection to raw binary mode
+// for file transfers. Returns a raw ReadWriter, a cleanup function, and
+// whether this is a telnet connection. Returns nil if the connection
+// type does not support binary mode.
+func (t *Terminal) EnterBinaryMode() (io.ReadWriter, func(), bool) {
+	if bms, ok := t.rwc.(BinaryModeSwitcher); ok {
+		return bms.EnterBinaryMode()
+	}
+	return nil, nil, false
 }
 
 // Close closes the underlying connection.

@@ -69,6 +69,16 @@ func (sc *SSHConn) SetEcho(on bool) error {
 	return nil
 }
 
+// EnterBinaryMode returns the raw SSH channel for binary transfers.
+// SSH channels are already binary-safe so no special handling is needed.
+func (sc *SSHConn) EnterBinaryMode() (io.ReadWriter, func(), bool) {
+	rw := struct {
+		io.Reader
+		io.Writer
+	}{sc.channel, sc.channel}
+	return rw, func() {}, false
+}
+
 // SSHListener accepts incoming SSH connections.
 type SSHListener struct {
 	addr        string

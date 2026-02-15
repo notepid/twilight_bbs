@@ -105,4 +105,11 @@ var migrations = []migration{
 				(3, 'Tech Talk', 'Technology discussion', 3)
 		`,
 	},
+	{
+		name: "seed default file areas",
+		sql: `
+			INSERT OR IGNORE INTO file_areas (id, name, description, disk_path, download_level, upload_level, sort_order) VALUES
+				(1, 'General Files', 'General purpose file uploads', './data/files', 10, 10, 1)
+		`,
+	},
 }

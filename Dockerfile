@@ -40,6 +40,11 @@ RUN useradd -m -s /bin/bash bbs
 # Copy binary
 COPY --from=builder /bbs /usr/local/bin/bbs
 
+# Copy SEXYZ (external file transfer tool for ZMODEM-8K)
+COPY bin/sexyz /usr/local/bin/sexyz
+COPY bin/sexyz.ini /usr/local/bin/sexyz.ini
+RUN chmod +x /usr/local/bin/sexyz
+
 # Copy assets
 COPY assets/ /opt/bbs/assets/
 COPY config.yaml /opt/bbs/config.yaml

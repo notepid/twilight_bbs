@@ -13,14 +13,14 @@ local menu = {}
 -- - drop_file_type (string; default "DOOR.SYS")
 -- - security_level (number; default 10)
 local doors = {
-    -- Example smoke-test door (matches prior DB seed)
-    ["H"] = {
-        name = "HELLO",
-        description = "Example test door (DOSEMU2 smoke test)",
-        command = "C:\\HELLO\\HELLO.BAT",
-        drop_file_type = "DOOR.SYS",
-        security_level = 10,
-    },
+    -- Example smoke-test door
+    --["H"] = {
+    --    name = "HELLO",
+    --    description = "Example test door (DOSEMU2 smoke test)",
+    --    command = "C:\\HELLO\\HELLO.BAT",
+    --    drop_file_type = "DOOR.SYS",
+    --    security_level = 10,
+    --},
     ["D"] = {
         name = "Darkness",
         description = "Darkness v2.0 - Post-apocalyptic cyberpunk adventure",
