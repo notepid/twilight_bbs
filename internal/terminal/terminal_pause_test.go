@@ -31,11 +31,6 @@ func TestPauseWithTimeout_DoesNotConsumeKeyAfterTimeout(t *testing.T) {
 		t.Fatalf("PauseWithTimeout did not return after timeout")
 	}
 
-	// Now send a key; it should be consumed by the next GetKey(), not by PauseWithTimeout.
-	if _, err := client.Write([]byte{'A'}); err != nil {
-		t.Fatalf("client write: %v", err)
-	}
-
 	keyCh := make(chan byte, 1)
 	errCh := make(chan error, 1)
 	go func() {
@@ -46,6 +41,22 @@ func TestPauseWithTimeout_DoesNotConsumeKeyAfterTimeout(t *testing.T) {
 		}
 		keyCh <- b
 	}()
+
+	// Now send a key; it should be consumed by the next GetKey(), not by PauseWithTimeout.
+	// net.Pipe has no internal buffering, so writes can block until a reader is waiting.
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := client.Write([]byte{'A'})
+		writeDone <- err
+	}()
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("client write: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("client write did not complete")
+	}
 
 	select {
 	case b := <-keyCh:
@@ -76,8 +87,18 @@ func TestPauseWithTimeout_ConsumesKeyBeforeTimeout(t *testing.T) {
 
 	// Press a key shortly after starting.
 	time.Sleep(150 * time.Millisecond)
-	if _, err := client.Write([]byte{'X'}); err != nil {
-		t.Fatalf("client write: %v", err)
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := client.Write([]byte{'X'})
+		writeDone <- err
+	}()
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("client write: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("client write did not complete")
 	}
 
 	select {
@@ -107,8 +128,18 @@ func TestPauseWithTimeout_ConsumesKeyBeforeTimeout(t *testing.T) {
 		// ok
 	}
 
-	if _, err := client.Write([]byte{'Y'}); err != nil {
-		t.Fatalf("client write: %v", err)
+	writeDone2 := make(chan error, 1)
+	go func() {
+		_, err := client.Write([]byte{'Y'})
+		writeDone2 <- err
+	}()
+	select {
+	case err := <-writeDone2:
+		if err != nil {
+			t.Fatalf("client write: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("client write did not complete")
 	}
 
 	select {
