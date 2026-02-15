@@ -29,31 +29,33 @@ var ErrMenuNotFound = errors.New("menu not found")
 
 // Services holds shared services available to the menu engine.
 type Services struct {
-	UserRepo       *user.Repo
-	MessageRepo    *message.Repo
-	FileRepo       *filearea.Repo
-	ChatBroker     *chat.Broker
-	DoorLauncher   *door.Launcher
-	TransferConfig *transfer.Config
-	DB             *sql.DB
-	NodeID         int
+	UserRepo        *user.Repo
+	MessageRepo     *message.Repo
+	FileRepo        *filearea.Repo
+	ChatBroker      *chat.Broker
+	DoorLauncher    *door.Launcher
+	TransferConfig  *transfer.Config
+	DB              *sql.DB
+	NodeID          int
+	PreAuthUsername string
+	PreAuthPassword string
 }
 
 // Engine manages the menu system for a single node/session.
 type Engine struct {
-	registry *Registry
-	loader   *ansi.Loader
-	term     *terminal.Terminal
-	services *Services
-	vm       *scripting.VM
-	nodeAPI  *scripting.NodeAPI
-	userAPI  *scripting.UserAPI
-	msgAPI   *scripting.MessageAPI
-	fileAPI  *scripting.FileAPI
-	chatAPI      *scripting.ChatAPI
-	doorAPI      *scripting.DoorAPI
-	transferAPI  *scripting.TransferAPI
-	nodeUD       *lua.LUserData
+	registry    *Registry
+	loader      *ansi.Loader
+	term        *terminal.Terminal
+	services    *Services
+	vm          *scripting.VM
+	nodeAPI     *scripting.NodeAPI
+	userAPI     *scripting.UserAPI
+	msgAPI      *scripting.MessageAPI
+	fileAPI     *scripting.FileAPI
+	chatAPI     *scripting.ChatAPI
+	doorAPI     *scripting.DoorAPI
+	transferAPI *scripting.TransferAPI
+	nodeUD      *lua.LUserData
 
 	// Current user
 	currentUser *user.User
@@ -103,6 +105,10 @@ func NewEngine(registry *Registry, loader *ansi.Loader, term *terminal.Terminal,
 	nodeAPI.OnSetMenuState = e.SetMenuState
 	nodeAPI.OnGetMenuState = e.GetMenuState
 	nodeAPI.OnGetField = e.GetField
+
+	// Wire pre-auth callbacks
+	nodeAPI.OnGetPreAuthUsername = e.PreAuthUsername
+	nodeAPI.OnGetPreAuthPassword = e.PreAuthPassword
 
 	// Register the node API in the Lua VM
 	e.nodeUD = nodeAPI.Register(vm.L)
@@ -178,6 +184,22 @@ func (e *Engine) Close() {
 // CurrentUser returns the currently logged-in user, or nil.
 func (e *Engine) CurrentUser() *user.User {
 	return e.currentUser
+}
+
+// PreAuthUsername returns the pre-authenticated username (from SSH), if any.
+func (e *Engine) PreAuthUsername() string {
+	if e.services != nil {
+		return e.services.PreAuthUsername
+	}
+	return ""
+}
+
+// PreAuthPassword returns the pre-authenticated password (from SSH), if any.
+func (e *Engine) PreAuthPassword() string {
+	if e.services != nil {
+		return e.services.PreAuthPassword
+	}
+	return ""
 }
 
 // Run starts the menu engine at the given initial menu.

@@ -34,6 +34,10 @@ type NodeAPI struct {
 	OnEnterChat  func() error
 	OnLaunchDoor func(name string) error
 
+	// Pre-auth callbacks - set by the menu engine
+	OnGetPreAuthUsername func() string
+	OnGetPreAuthPassword func() string
+
 	// Current menu name for state access
 	CurrentMenuName string
 }
@@ -151,6 +155,12 @@ func (api *NodeAPI) nodeIndex(L *lua.LState) int {
 		L.Push(L.NewFunction(api.luaEnterChat))
 	case "launch_door":
 		L.Push(L.NewFunction(api.luaLaunchDoor))
+
+	// Methods - Pre-auth
+	case "preauth_username":
+		L.Push(L.NewFunction(api.luaGetPreAuthUsername))
+	case "preauth_password":
+		L.Push(L.NewFunction(api.luaGetPreAuthPassword))
 
 	// Properties
 	case "width":
@@ -693,4 +703,22 @@ func (api *NodeAPI) luaLaunchDoor(L *lua.LState) int {
 		api.OnLaunchDoor(name)
 	}
 	return 0
+}
+
+func (api *NodeAPI) luaGetPreAuthUsername(L *lua.LState) int {
+	if api.OnGetPreAuthUsername != nil {
+		L.Push(lua.LString(api.OnGetPreAuthUsername()))
+	} else {
+		L.Push(lua.LString(""))
+	}
+	return 1
+}
+
+func (api *NodeAPI) luaGetPreAuthPassword(L *lua.LState) int {
+	if api.OnGetPreAuthPassword != nil {
+		L.Push(lua.LString(api.OnGetPreAuthPassword()))
+	} else {
+		L.Push(lua.LString(""))
+	}
+	return 1
 }
