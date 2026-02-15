@@ -97,15 +97,24 @@ type SSHListener struct {
 	// Captured credentials from SSH auth
 	username string
 	password string
+
+	// User authenticator for validating SSH passwords
+	authenticator PasswordAuthenticator
+}
+
+// PasswordAuthenticator validates username/password credentials.
+type PasswordAuthenticator interface {
+	Authenticate(username, password string) (bool, error)
 }
 
 // NewSSHListener creates a new SSH listener.
-func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, remoteAddr, username, password string)) (*SSHListener, error) {
+func NewSSHListener(port int, hostKeyPath string, authenticator PasswordAuthenticator, handler func(conn *SSHConn, remoteAddr, username, password string)) (*SSHListener, error) {
 	l := &SSHListener{
-		addr:        fmt.Sprintf(":%d", port),
-		handler:     handler,
-		hostKeyPath: hostKeyPath,
-		attempts:    make(map[string]*sshAttempt),
+		addr:          fmt.Sprintf(":%d", port),
+		handler:       handler,
+		hostKeyPath:   hostKeyPath,
+		authenticator: authenticator,
+		attempts:      make(map[string]*sshAttempt),
 	}
 
 	config := &ssh.ServerConfig{
@@ -149,11 +158,28 @@ func NewSSHListener(port int, hostKeyPath string, handler func(conn *SSHConn, re
 		},
 		ServerVersion: "SSH-2.0-TwilightBBS",
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			l.username = c.User()
-			l.password = string(pass)
+			username := c.User()
+			password := string(pass)
+			
+			// Validate credentials against user database if authenticator is provided
+			if l.authenticator != nil {
+				authenticated, err := l.authenticator.Authenticate(username, password)
+				if err != nil {
+					log.Printf("SSH auth error for user %s: %v", username, err)
+					return nil, fmt.Errorf("authentication failed")
+				}
+				if !authenticated {
+					log.Printf("SSH auth failed for user %s", username)
+					return nil, fmt.Errorf("invalid credentials")
+				}
+			}
+			
+			// Store credentials for pre-auth in BBS
+			l.username = username
+			l.password = password
 			return nil, nil
 		},
-		NoClientAuth: true,
+		NoClientAuth: false,  // Require authentication
 	}
 
 	l.config = config

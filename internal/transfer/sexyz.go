@@ -40,6 +40,14 @@ func (c *Config) Send(rw io.ReadWriter, isTelnet bool, filePaths ...string) (*Re
 		absPaths[i] = abs
 	}
 
+	// Validate paths are within authorized directories (prevents path traversal)
+	if c.PathValidator != nil {
+		if err := c.PathValidator.ValidatePaths(absPaths); err != nil {
+			log.Printf("[transfer] SEND blocked: %v", err)
+			return nil, fmt.Errorf("unauthorized file access")
+		}
+	}
+
 	// Build SEXYZ command:
 	//   sexyz [-telnet] -y -8 sz <file1> [file2 ...]
 	//
@@ -78,6 +86,14 @@ func (c *Config) Receive(rw io.ReadWriter, isTelnet bool, uploadDir string) (*Re
 	absDir, err := filepath.Abs(uploadDir)
 	if err != nil {
 		return nil, formatError("resolve upload dir", err)
+	}
+
+	// Validate upload directory is within authorized directories (prevents path traversal)
+	if c.PathValidator != nil {
+		if err := c.PathValidator.ValidatePath(absDir); err != nil {
+			log.Printf("[transfer] RECEIVE blocked: %v", err)
+			return nil, fmt.Errorf("unauthorized upload directory")
+		}
 	}
 
 	// SEXYZ concatenates the directory path with the filename directly,
