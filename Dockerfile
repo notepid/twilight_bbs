@@ -23,6 +23,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
+    gosu \
     netcat-openbsd \
     perl \
     software-properties-common \
@@ -63,16 +64,19 @@ RUN find /opt/bbs/doors/drive_c -type f \( -iname '*.bat' -o -iname '*.cmd' -o -
 RUN mkdir -p /opt/bbs/data /opt/bbs/assets/menus /opt/bbs/assets/text /opt/bbs/doors/drive_c && \
     chown -R bbs:bbs /opt/bbs
 
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Expose ports
 EXPOSE 2323 2222
 
-# Run as BBS user
-USER bbs
 WORKDIR /opt/bbs
 
-# Health check
+# Health check (runs as root, which is fine for health checks)
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD timeout 2 bash -c 'printf "GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" | nc -w 1 localhost 2223 | grep -q "200 OK"' || exit 1
 
-ENTRYPOINT ["bbs"]
-CMD ["-config", "/opt/bbs/config.yaml"]
+# Entrypoint handles permission fixing and drops to bbs user
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bbs", "-config", "/opt/bbs/config.yaml"]
